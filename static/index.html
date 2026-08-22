@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Drone View</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="/static/css/view.css" />
+</head>
+<body>
+  <svg class="svg-defs" aria-hidden="true" width="0" height="0">
+    <defs>
+      <!-- Blue (cold) → red (hot) thermal colormap for the grayscale thermal feed -->
+      <filter id="thermal-palette" color-interpolation-filters="sRGB">
+        <feColorMatrix type="saturate" values="0" />
+        <feComponentTransfer>
+          <feFuncR type="table" tableValues="0.0 0.20 0.60 0.95 1.0" />
+          <feFuncG type="table" tableValues="0.0 0.0 0.15 0.35 0.25" />
+          <feFuncB type="table" tableValues="1.0 0.75 0.35 0.10 0.05" />
+        </feComponentTransfer>
+      </filter>
+    </defs>
+  </svg>
+
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark"></div>
+        <div>
+          <h1 id="drone-name">Drone</h1>
+          <p id="drone-host" class="subtitle mono">—</p>
+        </div>
+      </div>
+      <div class="status-cluster">
+        <div id="conn-agent" class="pill"><span class="dot"></span>Agent</div>
+        <div id="conn-mavlink" class="pill"><span class="dot"></span>MAVLink</div>
+        <div id="conn-video-vis" class="pill"><span class="dot"></span>Visible</div>
+        <div id="conn-video-th" class="pill"><span class="dot"></span>Thermal</div>
+      </div>
+    </header>
+
+    <main class="main">
+      <div class="cam-bar">
+        <button class="cam-btn" data-yaw="0" data-pitch="1" title="Up">▲</button>
+        <button class="cam-btn" data-yaw="-1" data-pitch="0" title="Left">◀</button>
+        <button class="cam-btn cam-center" data-action="center" title="Center">●</button>
+        <button class="cam-btn" data-yaw="1" data-pitch="0" title="Right">▶</button>
+        <button class="cam-btn" data-yaw="0" data-pitch="-1" title="Down">▼</button>
+        <span class="cam-sep"></span>
+        <button class="cam-btn" data-action="zoom-out" title="Zoom out">−</button>
+        <button class="cam-btn" data-action="zoom-in" title="Zoom in">+</button>
+      </div>
+
+      <section class="feeds">
+        <article class="feed-card">
+          <div class="feed-head"><span>Visible</span></div>
+          <div class="video-wrap">
+            <video id="video-visible" autoplay playsinline muted></video>
+            <div id="overlay-visible" class="overlay hidden"><span id="status-visible">Connecting…</span></div>
+          </div>
+        </article>
+        <article class="feed-card">
+          <div class="feed-head"><span>Thermal</span></div>
+          <div class="video-wrap thermal">
+            <video id="video-thermal" autoplay playsinline muted></video>
+            <div id="overlay-thermal" class="overlay hidden"><span id="status-thermal">Connecting…</span></div>
+          </div>
+        </article>
+      </section>
+
+      <section class="data-panel">
+        <div class="hud-row">
+          <div class="hud-chip" id="hud-mode">—</div>
+          <div class="hud-chip armed" id="hud-armed">DISARMED</div>
+          <div class="hud-chip dim" id="hud-status">—</div>
+        </div>
+
+        <div class="telemetry-grid">
+          <div class="t-cell"><span class="lbl">Altitude</span><span id="tel-alt" class="val mono">—</span></div>
+          <div class="t-cell"><span class="lbl">AGL</span><span id="tel-rel-alt" class="val mono">—</span></div>
+          <div class="t-cell"><span class="lbl">Speed</span><span id="tel-speed" class="val mono">—</span></div>
+          <div class="t-cell"><span class="lbl">Climb</span><span id="tel-climb" class="val mono">—</span></div>
+          <div class="t-cell"><span class="lbl">Heading</span><span id="tel-heading" class="val mono">—</span></div>
+          <div class="t-cell"><span class="lbl">Battery</span><span id="tel-battery" class="val mono">—</span></div>
+          <div class="t-cell"><span class="lbl">GPS</span><span id="tel-gps" class="val mono">—</span></div>
+          <div class="t-cell"><span class="lbl">Position</span><span id="tel-pos" class="val mono sm">—</span></div>
+          <div class="t-cell"><span class="lbl">Roll</span><span id="tel-roll" class="val mono">—</span></div>
+          <div class="t-cell"><span class="lbl">Pitch</span><span id="tel-pitch" class="val mono">—</span></div>
+          <div class="t-cell"><span class="lbl">Yaw</span><span id="tel-yaw" class="val mono">—</span></div>
+          <div class="t-cell"><span class="lbl">Updated</span><span id="tel-age" class="val mono dim">—</span></div>
+        </div>
+
+        <div class="bottom-row">
+          <div class="map-wrap">
+            <div id="map" class="map"></div>
+          </div>
+          <div class="attitude-wrap">
+            <canvas id="attitude" width="140" height="140"></canvas>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <span id="toast"></span>
+    </footer>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script type="module" src="/static/js/app.js"></script>
+</body>
+</html>

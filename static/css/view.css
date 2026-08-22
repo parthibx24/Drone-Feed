@@ -1,0 +1,313 @@
+:root {
+  --bg: #06090d;
+  --surface: #0f1419;
+  --border: #243041;
+  --text: #e8eef5;
+  --dim: #7d8fa3;
+  --accent: #00d4aa;
+  --success: #4ade80;
+  --warning: #fbbf24;
+  --danger: #f87171;
+  --mono: "JetBrains Mono", ui-monospace, monospace;
+  --font: "DM Sans", system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+}
+
+.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.sm { font-size: 0.72rem; }
+
+.app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.65rem 1rem;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.brand-mark {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  background: linear-gradient(135deg, var(--accent), #38bdf8);
+}
+
+.brand h1 { font-size: 0.95rem; font-weight: 700; }
+.subtitle { font-size: 0.68rem; color: var(--dim); }
+
+.status-cluster { display: flex; gap: 0.35rem; flex-wrap: wrap; }
+
+.pill {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.28rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border: 1px solid var(--border);
+  background: #111820;
+  color: var(--dim);
+}
+
+.pill .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.4;
+}
+
+.pill.ok { color: var(--success); border-color: color-mix(in srgb, var(--success) 35%, var(--border)); }
+.pill.ok .dot { opacity: 1; background: var(--success); }
+.pill.bad { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 35%, var(--border)); }
+.pill.bad .dot { opacity: 1; background: var(--danger); }
+.pill.check { color: var(--warning); border-color: color-mix(in srgb, var(--warning) 35%, var(--border)); }
+.pill.check .dot { opacity: 1; background: var(--warning); animation: blink 1.2s infinite; }
+
+@keyframes blink { 50% { opacity: 0.25; } }
+
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  min-height: 0;
+}
+
+.svg-defs { position: absolute; width: 0; height: 0; }
+
+.feeds {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  flex: 1 1 auto;
+  min-height: 68vh;
+}
+
+@media (max-width: 900px) {
+  .feeds { grid-template-columns: 1fr; }
+}
+
+.feed-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.feed-head {
+  padding: 0.4rem 0.75rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--dim);
+  border-bottom: 1px solid var(--border);
+}
+
+.video-wrap {
+  position: relative;
+  flex: 1;
+  background: #000;
+  min-height: 340px;
+}
+
+/* Colorize the grayscale thermal feed — applied to the whole wrap so it works
+   whether go2rtc renders via <video> (WebRTC/MSE) or its fallback <iframe>. */
+.video-wrap.thermal { filter: url(#thermal-palette); }
+
+.go2rtc-frame {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.7);
+  color: var(--dim);
+  font-size: 0.8rem;
+}
+
+.overlay.hidden { display: none; }
+
+.data-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.hud-row { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+
+.hud-chip {
+  padding: 0.25rem 0.55rem;
+  border-radius: 6px;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  background: #111820;
+  border: 1px solid var(--border);
+}
+
+.hud-chip.armed.is-armed { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 40%, var(--border)); }
+.hud-chip.armed:not(.is-armed) { color: var(--success); border-color: color-mix(in srgb, var(--success) 40%, var(--border)); }
+.hud-chip.dim { color: var(--dim); font-family: var(--font); font-size: 0.68rem; }
+
+.telemetry-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 0.4rem;
+}
+
+@media (max-width: 1100px) { .telemetry-grid { grid-template-columns: repeat(4, 1fr); } }
+@media (max-width: 700px) { .telemetry-grid { grid-template-columns: repeat(2, 1fr); } }
+
+.t-cell {
+  padding: 0.45rem 0.55rem;
+  background: #0a0f14;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+}
+
+.lbl {
+  display: block;
+  font-size: 0.58rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--dim);
+  margin-bottom: 0.15rem;
+}
+
+.val { font-size: 0.88rem; font-weight: 600; }
+.val.dim { color: var(--dim); font-weight: 400; font-size: 0.75rem; }
+
+.bottom-row {
+  display: grid;
+  grid-template-columns: 1fr 160px;
+  gap: 0.65rem;
+  min-height: 160px;
+}
+
+.map-wrap {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.map { height: 160px; background: #0a0f14; }
+
+.attitude-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #0a0f14;
+}
+
+/* Simple semi-transparent camera control bar, sits directly above the feeds. */
+.cam-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.6rem;
+  background: rgba(15, 20, 25, 0.55);
+  border: 1px solid rgba(36, 48, 65, 0.6);
+  border-radius: 999px;
+  backdrop-filter: blur(6px);
+  width: fit-content;
+  margin: 0 auto;
+}
+
+.cam-sep {
+  width: 1px;
+  height: 20px;
+  background: var(--border);
+  margin: 0 0.25rem;
+}
+
+.cam-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  font-size: 1rem;
+  background: rgba(17, 24, 32, 0.55);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+  user-select: none;
+  touch-action: none;
+}
+
+.cam-btn:hover { border-color: var(--accent); }
+.cam-btn.active { background: color-mix(in srgb, var(--accent) 30%, transparent); border-color: var(--accent); }
+.cam-btn.cam-center { color: var(--accent); }
+
+.footer {
+  padding: 0.35rem 1rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.72rem;
+  color: var(--accent);
+  min-height: 1.5rem;
+}
+
+.leaflet-container { background: #0a0f14 !important; font-family: var(--font); }
+
+.drone-marker {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid #fff;
+  box-shadow: 0 0 8px rgba(0, 212, 170, 0.6);
+}

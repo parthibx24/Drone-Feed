@@ -26,6 +26,8 @@ class DroneView {
       document.getElementById("overlay-thermal"),
       document.getElementById("status-thermal"),
     );
+    this.videoVis.setBadge(document.getElementById("badge-visible"));
+    this.videoTh.setBadge(document.getElementById("badge-thermal"));
     this.videoVis.onStateChange = (ok) => this.setPill("conn-video-vis", ok);
     this.videoTh.onStateChange = (ok) => this.setPill("conn-video-th", ok);
 

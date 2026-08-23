@@ -18,6 +18,14 @@ export class VideoPlayer {
     this._frameCallbackId = null;
     this.onStateChange = null;
 
+    // --- Transport label + FPS tracking ---
+    this._transport = null;   // "RTC" | "MSE" | "IFRAME" | null
+    this._fpsFrameCount = 0;
+    this._fpsLastSample = 0;
+    this._currentFps = 0;
+    this._fpsTimer = null;
+    this._badgeEl = null;     // set externally via setBadge()
+
     this._onVideoStall = () => this._scheduleReconnect("video stalled");
     this._onVideoError = () => this._scheduleReconnect("video error");
     this.video.addEventListener("stalled", this._onVideoStall);
@@ -29,6 +37,11 @@ export class VideoPlayer {
         setTimeout(() => this._checkHealth(), 500);
       }
     });
+  }
+
+  /** Bind a badge element (should contain .badge-transport and .badge-fps children) */
+  setBadge(badgeEl) {
+    this._badgeEl = badgeEl;
   }
 
   /** @returns {Promise<boolean>} true when playback is verified */
@@ -48,6 +61,7 @@ export class VideoPlayer {
           this._hide();
           this._lastFrameAt = Date.now();
           this._startFrameMonitor();
+          this._startFpsSampler();
           this._notifyState(true);
           this._startWatchdog();
           return true;
@@ -70,6 +84,7 @@ export class VideoPlayer {
   disconnect({ clearTarget = true } = {}) {
     this._stopWatchdog();
     this._stopFrameMonitor();
+    this._stopFpsSampler();
     if (this._abort) {
       this._abort.abort();
       this._abort = null;
@@ -83,10 +98,14 @@ export class VideoPlayer {
       this._iframe = null;
     }
     this.video.style.display = "";
-    this.video.srcObject = null;
-    this.video.removeAttribute("src");
-    this.video.load();
-    if (clearTarget) this._lastConnect = null;
+    // Keep last frame: don't clear srcObject/src during reconnects
+    if (clearTarget) {
+      this.video.srcObject = null;
+      this.video.removeAttribute("src");
+      this.video.load();
+      this._lastConnect = null;
+      this._setTransport(null);
+    }
   }
 
   async _connectOnce(go2rtcUrl, streamName, silent = false) {
@@ -101,6 +120,7 @@ export class VideoPlayer {
     try {
       await this._tryWebRTC(base, streamName);
       if (await this._waitForFrames(8000)) {
+        this._setTransport("RTC");
         return true;
       }
       console.warn("WebRTC connected but no frames — trying iframe");
@@ -113,6 +133,7 @@ export class VideoPlayer {
       await this._sleep(2000);
       if (await this._probeStream(base, streamName)) {
         this._iframeLoadedAt = Date.now();
+        this._setTransport("IFRAME");
         return true;
       }
       console.warn("Iframe loaded but stream inactive — trying MSE");
@@ -123,6 +144,7 @@ export class VideoPlayer {
     try {
       await this._tryMSE(base, streamName);
       if (await this._waitForFrames(6000)) {
+        this._setTransport("MSE");
         return true;
       }
     } catch (mseErr) {
@@ -240,8 +262,7 @@ export class VideoPlayer {
       this.pc.close();
       this.pc = null;
     }
-    this.video.srcObject = null;
-    this.video.removeAttribute("src");
+    // Don't blank the video — keep last frame visible
     this.video.style.display = "none";
   }
 
@@ -277,12 +298,15 @@ export class VideoPlayer {
     }
   }
 
+  // ---- Frame monitor (liveness) ----
+
   _startFrameMonitor() {
     this._stopFrameMonitor();
     if (this._iframe || !("requestVideoFrameCallback" in this.video)) return;
 
     const tick = () => {
       this._lastFrameAt = Date.now();
+      this._fpsFrameCount++;
       this._frameCallbackId = this.video.requestVideoFrameCallback(tick);
     };
     this._frameCallbackId = this.video.requestVideoFrameCallback(tick);
@@ -294,6 +318,100 @@ export class VideoPlayer {
     }
     this._frameCallbackId = null;
   }
+
+  // ---- FPS sampler ----
+
+  _startFpsSampler() {
+    this._stopFpsSampler();
+    this._fpsFrameCount = 0;
+    this._fpsLastSample = performance.now();
+    this._fpsLastDecodedFrames = 0;
+    this._fpsTimer = setInterval(() => this._sampleFps(), 1000);
+    // Kick off initial stats fetch for WebRTC
+    this._pollRtcFrames();
+  }
+
+  _stopFpsSampler() {
+    if (this._fpsTimer) {
+      clearInterval(this._fpsTimer);
+      this._fpsTimer = null;
+    }
+    this._currentFps = 0;
+    this._updateBadge();
+  }
+
+  /** Poll WebRTC stats for framesDecoded (most reliable for RTC) */
+  async _pollRtcFrames() {
+    if (!this.pc) return 0;
+    try {
+      const stats = await this.pc.getStats();
+      let frames = 0;
+      stats.forEach((report) => {
+        if (report.type === "inbound-rtp" && report.kind === "video") {
+          frames = report.framesDecoded || 0;
+        }
+      });
+      return frames;
+    } catch {
+      return 0;
+    }
+  }
+
+  async _sampleFps() {
+    const now = performance.now();
+    const elapsed = (now - this._fpsLastSample) / 1000;
+    if (elapsed <= 0) return;
+
+    let fps = 0;
+
+    // Method 1: WebRTC getStats() — best for RTC transport
+    if (this.pc && this._transport === "RTC") {
+      const decoded = await this._pollRtcFrames();
+      if (this._fpsLastDecodedFrames > 0 && decoded > this._fpsLastDecodedFrames) {
+        fps = Math.round((decoded - this._fpsLastDecodedFrames) / elapsed);
+      }
+      this._fpsLastDecodedFrames = decoded;
+    }
+
+    // Method 2: requestVideoFrameCallback count (fallback)
+    if (fps === 0 && this._fpsFrameCount > 0) {
+      fps = Math.round(this._fpsFrameCount / elapsed);
+    }
+
+    // Method 3: getVideoPlaybackQuality (MSE only)
+    if (fps === 0 && this._transport === "MSE") {
+      try {
+        const q = this.video.getVideoPlaybackQuality?.();
+        const total = q?.totalVideoFrames ?? 0;
+        if (this._fpsLastDecodedFrames > 0 && total > this._fpsLastDecodedFrames) {
+          fps = Math.round((total - this._fpsLastDecodedFrames) / elapsed);
+        }
+        this._fpsLastDecodedFrames = total;
+      } catch { /* ignore */ }
+    }
+
+    this._currentFps = fps;
+    this._fpsFrameCount = 0;
+    this._fpsLastSample = now;
+    this._updateBadge();
+  }
+
+  // ---- Transport label + badge ----
+
+  _setTransport(type) {
+    this._transport = type;
+    this._updateBadge();
+  }
+
+  _updateBadge() {
+    if (!this._badgeEl) return;
+    const tEl = this._badgeEl.querySelector(".badge-transport");
+    const fEl = this._badgeEl.querySelector(".badge-fps");
+    if (tEl) tEl.textContent = this._transport || "—";
+    if (fEl) fEl.textContent = this._currentFps > 0 ? `${this._currentFps} fps` : "—";
+  }
+
+  // ---- Watchdog ----
 
   _startWatchdog() {
     this._stopWatchdog();

@@ -125,6 +125,9 @@ body {
 }
 
 .feed-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   padding: 0.4rem 0.75rem;
   font-size: 0.68rem;
   font-weight: 600;
@@ -133,6 +136,20 @@ body {
   color: var(--dim);
   border-bottom: 1px solid var(--border);
 }
+
+/* Transport + FPS badge — right side of feed header */
+.feed-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+.badge-transport { color: var(--accent); }
+.badge-sep { opacity: 0.35; }
+.badge-fps { color: var(--text); }
 
 .video-wrap {
   position: relative;
@@ -166,9 +183,11 @@ video {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.7);
+  background: rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(2px);
   color: var(--dim);
   font-size: 0.8rem;
+  transition: opacity 0.25s;
 }
 
 .overlay.hidden { display: none; }

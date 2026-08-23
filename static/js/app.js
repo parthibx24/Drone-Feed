@@ -7,12 +7,14 @@ import {
 } from "./mavlink.js";
 import { GimbalClient } from "./gimbal.js";
 
-const GIMBAL_SPEED = 4;
+const DEFAULT_GIMBAL_SPEED = 4;
 
 class DroneView {
   constructor() {
     this.config = null;
-    this.gimbal = new GimbalClient();
+    this.host = null;
+    this.name = null;
+    this.gimbalSpeed = DEFAULT_GIMBAL_SPEED;
 
     this.videoVis = new VideoPlayer(
       document.getElementById("video-visible"),
@@ -31,6 +33,8 @@ class DroneView {
     this.attitude = new AttitudeIndicator(document.getElementById("attitude"));
     this.map = new MapTracker(document.getElementById("map"));
 
+    this.currentZoom = 1.0;
+
     this.els = {
       mode: document.getElementById("hud-mode"),
       armed: document.getElementById("hud-armed"),
@@ -46,13 +50,46 @@ class DroneView {
       roll: document.getElementById("tel-roll"),
       pitch: document.getElementById("tel-pitch"),
       yaw: document.getElementById("tel-yaw"),
+      zoom: document.getElementById("tel-zoom"),
+      camYaw: document.getElementById("cam-yaw-val"),
+      camZoom: document.getElementById("cam-zoom-val"),
+      hudYaw: document.getElementById("hud-yaw-val"),
+      hudZoom: document.getElementById("hud-zoom-val"),
       age: document.getElementById("tel-age"),
     };
 
     this.toast = document.getElementById("toast");
 
-    this._bindControls();
-    this._bindKeyboard();
+    this._bindSpeedControl();
+  }
+
+  updateZoom(level) {
+    if (level != null) {
+      this.currentZoom = Math.max(1, typeof level === "number" ? level : parseFloat(level) || 1);
+    }
+    const formatted = `${this.currentZoom.toFixed(1)}×`;
+    if (this.els.zoom) this.els.zoom.textContent = formatted;
+    if (this.els.camZoom) this.els.camZoom.textContent = formatted;
+    if (this.els.hudZoom) this.els.hudZoom.textContent = formatted;
+  }
+
+  updateYaw(deg) {
+    if (deg == null) return;
+    const formatted = `${Number(deg).toFixed(1)}°`;
+    if (this.els.yaw) this.els.yaw.textContent = formatted;
+    if (this.els.camYaw) this.els.camYaw.textContent = formatted;
+    if (this.els.hudYaw) this.els.hudYaw.textContent = formatted;
+  }
+
+  _bindSpeedControl() {
+    const slider = document.getElementById("speed-slider");
+    const valDisplay = document.getElementById("speed-value");
+    if (!slider) return;
+
+    slider.addEventListener("input", (e) => {
+      this.gimbalSpeed = parseFloat(e.target.value) || DEFAULT_GIMBAL_SPEED;
+      if (valDisplay) valDisplay.textContent = this.gimbalSpeed;
+    });
   }
 
   _bindControls() {
@@ -60,7 +97,11 @@ class DroneView {
       const action = btn.dataset.action;
       if (action === "zoom-in" || action === "zoom-out") {
         const dir = action === "zoom-in" ? "in" : "out";
-        this._bindHoldRepeat(btn, () => this.gimbal.zoom(dir).catch(() => {}));
+        this._bindHoldRepeat(btn, () => {
+          this.gimbal.zoom(dir).catch(() => {});
+          const next = dir === "in" ? this.currentZoom + 0.1 : Math.max(1, this.currentZoom - 0.1);
+          this.updateZoom(next);
+        });
         continue;
       }
       if (action) {
@@ -73,7 +114,7 @@ class DroneView {
         this.gimbal.move(
           parseFloat(btn.dataset.yaw || 0),
           parseFloat(btn.dataset.pitch || 0),
-          GIMBAL_SPEED,
+          this.gimbalSpeed,
         );
       };
       const stop = () => {
@@ -113,9 +154,18 @@ class DroneView {
 
   async handleAction(action) {
     try {
-      if (action === "zoom-in") await this.gimbal.zoom("in");
-      else if (action === "zoom-out") await this.gimbal.zoom("out");
-      else await this.gimbal.ptz(action); // center
+      if (action === "zoom-in") {
+        await this.gimbal.zoom("in");
+        this.updateZoom(this.currentZoom + 0.5);
+      } else if (action === "zoom-out") {
+        await this.gimbal.zoom("out");
+        this.updateZoom(Math.max(1, this.currentZoom - 0.5));
+      } else if (action === "zoom-reset") {
+        await this.gimbal.zoomReset();
+        this.updateZoom(1.0);
+      } else {
+        await this.gimbal.ptz(action); // center
+      }
       this.toastMsg(action);
     } catch (e) {
       this.toastMsg(e.message);
@@ -143,11 +193,15 @@ class DroneView {
         this.gimbal.ptz("center").catch(() => {});
         return;
       }
+      if (e.key === "1" || e.key === "z" || e.key === "Z") {
+        this.handleAction("zoom-reset").catch(() => {});
+        return;
+      }
       const dir = keys[e.key];
       if (dir && activeKey !== e.key) {
         e.preventDefault();
         activeKey = e.key;
-        this.gimbal.move(dir[0], dir[1], GIMBAL_SPEED);
+        this.gimbal.move(dir[0], dir[1], this.gimbalSpeed);
       }
     });
 
@@ -169,18 +223,53 @@ class DroneView {
   }
 
   async init() {
+    // ---- Read drone host & name from URL query params ----
+    const params = new URLSearchParams(window.location.search);
+    this.host = params.get("host");
+    this.name = params.get("name");
+
+    if (!this.host || !this.name) {
+      const missing = !this.host && !this.name ? "host and name"
+        : !this.host ? "host" : "name";
+      const msg = `Missing ?${missing}= query parameter.\n\nOpen this page as:\n` +
+        window.location.origin + "/?host=<DRONE_IP>&name=<DRONE_NAME>";
+      document.getElementById("status-visible").textContent =
+        `Missing ?${missing}= in URL`;
+      document.getElementById("overlay-visible").classList.remove("hidden");
+      document.getElementById("status-thermal").textContent =
+        "Add ?host=<IP>&name=<NAME> to the URL";
+      document.getElementById("overlay-thermal").classList.remove("hidden");
+      document.getElementById("drone-name").textContent = "No Drone";
+      document.getElementById("drone-host").textContent =
+        "Add ?host=<IP>&name=<NAME> to the URL";
+      throw new Error(msg);
+    }
+
+    // ---- Fetch server-side config (stream names, ports) ----
     const resp = await fetch("/api/config");
     this.config = await resp.json();
 
-    document.getElementById("drone-name").textContent = this.config.name;
-    document.getElementById("drone-host").textContent = this.config.host;
+    // ---- Set header from query params ----
+    document.getElementById("drone-name").textContent = this.name;
+    document.getElementById("drone-host").textContent = this.host;
+
+    // ---- go2rtc URL from server config; stream names from name prefix ----
+    const go2rtcUrl = this.config.go2rtc_url;
+    const visibleStream = `${this.name}_camera`;
+    const thermalStream = `${this.name}_thermal`;
+
+    // ---- Initialise gimbal client with host ----
+    this.gimbal = new GimbalClient(this.host);
+
+    this._bindControls();
+    this._bindKeyboard();
 
     this.setPill("conn-agent", null);
     this.setPill("conn-mavlink", null);
     this.setPill("conn-video-vis", null);
     this.setPill("conn-video-th", null);
 
-    this.mavlink.connect();
+    this.mavlink.connect(this.host);
 
     // Start telemetry/health polling immediately — must NOT depend on video,
     // otherwise a failing/slow go2rtc connect would prevent MAVLink from showing.
@@ -191,16 +280,16 @@ class DroneView {
 
     // Video runs independently; swallow errors so it can't break the dashboard.
     this.videoVis
-      .connect(this.config.go2rtc_url, this.config.stream)
+      .connect(go2rtcUrl, visibleStream)
       .catch((err) => console.warn("Visible video failed:", err));
     this.videoTh
-      .connect(this.config.go2rtc_url, this.config.thermal_stream)
+      .connect(go2rtcUrl, thermalStream)
       .catch((err) => console.warn("Thermal video failed:", err));
   }
 
   async pollHealth() {
     try {
-      const resp = await fetch("/api/health");
+      const resp = await fetch(`/api/health?host=${encodeURIComponent(this.host)}`);
       const h = await resp.json();
       this.setPill("conn-agent", h.agent_ok !== false);
       this.setPill("conn-mavlink", !!h.mavlink_connected);
@@ -212,13 +301,16 @@ class DroneView {
 
   async pollTelemetry() {
     try {
-      const resp = await fetch("/api/telemetry");
+      const resp = await fetch(`/api/telemetry?host=${encodeURIComponent(this.host)}`);
       if (resp.ok) this.onTelemetry(await resp.json());
     } catch { /* offline */ }
   }
 
   onTelemetry(data) {
     applyTelemetry(data, this.els);
+    if (data.zoom_level != null || data.zoom != null) {
+      this.currentZoom = Number(data.zoom_level ?? data.zoom);
+    }
     this.attitude.update(data.roll_deg, data.pitch_deg);
     this.map.update(data.lat, data.lon);
     if (data.flight_mode && data.flight_mode !== "UNKNOWN") {
@@ -238,6 +330,4 @@ class DroneView {
 
 new DroneView().init().catch((err) => {
   console.error(err);
-  document.getElementById("status-visible").textContent = err.message;
-  document.getElementById("overlay-visible").classList.remove("hidden");
 });

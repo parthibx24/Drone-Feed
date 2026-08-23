@@ -3,16 +3,26 @@
 const BASE = "/api/gimbal";
 
 export class GimbalClient {
-  constructor() {
+  constructor(host) {
+    this._host = host;
     this._moveTimer = null;
+    this._jogInFlight = false;  // skip jog if previous hasn't returned
+  }
+
+  /** Build a URL with the host query param appended. */
+  _url(path) {
+    return `${BASE}${path}?host=${encodeURIComponent(this._host)}`;
   }
 
   _jog(yaw, pitch, speed) {
-    return fetch(`${BASE}/jog`, {
+    // Skip if previous jog is still in-flight — avoids request pileup
+    if (this._jogInFlight) return Promise.resolve();
+    this._jogInFlight = true;
+    return fetch(this._url("/jog"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ yaw, pitch, speed }),
-    });
+    }).finally(() => { this._jogInFlight = false; });
   }
 
   startMove(yaw, pitch, speed) {
@@ -61,6 +71,10 @@ export class GimbalClient {
     return this._post("/zoom-level", { level });
   }
 
+  zoomReset() {
+    return this.zoomLevel(1);
+  }
+
   goto(yaw, pitch) {
     const body = {};
     if (yaw != null && yaw !== "") body.yaw = Number(yaw);
@@ -74,7 +88,7 @@ export class GimbalClient {
       opts.headers = { "Content-Type": "application/json" };
       opts.body = JSON.stringify(body);
     }
-    const resp = await fetch(`${BASE}${path}`, opts);
+    const resp = await fetch(this._url(path), opts);
     if (!resp.ok) throw new Error(`${path} → ${resp.status}`);
     return resp.json();
   }

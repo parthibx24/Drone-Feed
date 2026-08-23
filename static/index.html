@@ -44,14 +44,33 @@
 
     <main class="main">
       <div class="cam-bar">
-        <button class="cam-btn" data-yaw="0" data-pitch="1" title="Up">▲</button>
-        <button class="cam-btn" data-yaw="-1" data-pitch="0" title="Left">◀</button>
-        <button class="cam-btn cam-center" data-action="center" title="Center">●</button>
-        <button class="cam-btn" data-yaw="1" data-pitch="0" title="Right">▶</button>
-        <button class="cam-btn" data-yaw="0" data-pitch="-1" title="Down">▼</button>
+        <div class="cam-group">
+          <button class="cam-btn" data-yaw="0" data-pitch="1" title="Up">▲</button>
+          <button class="cam-btn" data-yaw="-1" data-pitch="0" title="Left">◀</button>
+          <button class="cam-btn cam-center" data-action="center" title="Center">●</button>
+          <button class="cam-btn" data-yaw="1" data-pitch="0" title="Right">▶</button>
+          <button class="cam-btn" data-yaw="0" data-pitch="-1" title="Down">▼</button>
+          <div class="cam-badge" title="Gimbal / Drone Yaw">
+            <span class="cam-badge-lbl">YAW</span>
+            <span id="cam-yaw-val" class="cam-badge-val mono">—</span>
+          </div>
+        </div>
         <span class="cam-sep"></span>
-        <button class="cam-btn" data-action="zoom-out" title="Zoom out">−</button>
-        <button class="cam-btn" data-action="zoom-in" title="Zoom in">+</button>
+        <div class="cam-group">
+          <button class="cam-btn" data-action="zoom-out" title="Zoom out">−</button>
+          <button class="cam-btn cam-zoom-reset" data-action="zoom-reset" title="Reset zoom (1×)">1×</button>
+          <button class="cam-btn" data-action="zoom-in" title="Zoom in">+</button>
+          <div class="cam-badge" title="Current Zoom Level">
+            <span class="cam-badge-lbl">ZOOM</span>
+            <span id="cam-zoom-val" class="cam-badge-val mono">1.0×</span>
+          </div>
+        </div>
+        <span class="cam-sep"></span>
+        <label class="speed-control" title="Movement speed multiplier">
+          <span class="speed-label">SPD</span>
+          <input id="speed-slider" type="range" min="1" max="20" value="4" step="1" class="speed-slider" />
+          <span id="speed-value" class="speed-value mono">4</span>
+        </label>
       </div>
 
       <section class="feeds">
@@ -75,6 +94,8 @@
         <div class="hud-row">
           <div class="hud-chip" id="hud-mode">—</div>
           <div class="hud-chip armed" id="hud-armed">DISARMED</div>
+          <div class="hud-chip hud-data-chip" id="hud-yaw"><span class="chip-lbl">YAW:</span> <span id="hud-yaw-val" class="chip-val mono">—</span></div>
+          <div class="hud-chip hud-data-chip" id="hud-zoom"><span class="chip-lbl">ZOOM:</span> <span id="hud-zoom-val" class="chip-val mono">1.0×</span></div>
           <div class="hud-chip dim" id="hud-status">—</div>
         </div>
 
@@ -90,6 +111,7 @@
           <div class="t-cell"><span class="lbl">Roll</span><span id="tel-roll" class="val mono">—</span></div>
           <div class="t-cell"><span class="lbl">Pitch</span><span id="tel-pitch" class="val mono">—</span></div>
           <div class="t-cell"><span class="lbl">Yaw</span><span id="tel-yaw" class="val mono">—</span></div>
+          <div class="t-cell"><span class="lbl">Zoom</span><span id="tel-zoom" class="val mono">1.0×</span></div>
           <div class="t-cell"><span class="lbl">Updated</span><span id="tel-age" class="val mono dim">—</span></div>
         </div>
 

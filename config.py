@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from pydantic import computed_field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 ROOT = Path(__file__).resolve().parent
@@ -17,37 +16,23 @@ class ViewerSettings(BaseSettings):
         extra="ignore",
     )
 
-    drone_host: str
-    drone_name: str = "Drone"
-
     agent_port: int = 8080
-    go2rtc_port: int = 1984
-    stream: str = "skydroid_camera"
-    thermal_stream: str = "skydroid_thermal"
+    go2rtc_url: str = "https://cams.drone.starwatch.bb7fab11.sslip.io"
 
     viewer_host: str = "0.0.0.0"
     viewer_port: int = 8091
 
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def agent_url(self) -> str:
-        return f"http://{self.drone_host}:{self.agent_port}"
-
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def go2rtc_url(self) -> str:
-        return f"http://{self.drone_host}:{self.go2rtc_port}"
-
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def mavlink_ws_url(self) -> str:
-        return f"ws://{self.drone_host}:{self.agent_port}/api/mavlink/ws"
-
     def public_config(self) -> dict:
+        """Return non-sensitive, drone-agnostic settings for the frontend."""
         return {
-            "name": self.drone_name,
-            "host": self.drone_host,
-            "go2rtc_url": self.go2rtc_url,
-            "stream": self.stream,
-            "thermal_stream": self.thermal_stream,
+            "agent_port": self.agent_port,
+            "go2rtc_url": self.go2rtc_url.rstrip("/"),
         }
+
+
+def build_drone_urls(host: str, cfg: ViewerSettings) -> dict:
+    """Build per-request upstream URLs from a drone host IP and shared config."""
+    return {
+        "agent_url": f"http://{host}:{cfg.agent_port}",
+        "mavlink_ws_url": f"ws://{host}:{cfg.agent_port}/api/mavlink/ws",
+    }

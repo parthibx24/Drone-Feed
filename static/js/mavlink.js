@@ -5,12 +5,16 @@ export class MavlinkClient {
     this.onTelemetry = onTelemetry;
     this.ws = null;
     this._timer = null;
+    this._host = null;
   }
 
-  connect() {
+  connect(host) {
+    this._host = host;
     this.disconnect();
     const proto = location.protocol === "https:" ? "wss:" : "ws:";
-    const ws = new WebSocket(`${proto}//${location.host}/ws/mavlink`);
+    const ws = new WebSocket(
+      `${proto}//${location.host}/ws/mavlink?host=${encodeURIComponent(host)}`,
+    );
     ws.onmessage = (ev) => {
       try {
         const msg = JSON.parse(ev.data);
@@ -19,7 +23,7 @@ export class MavlinkClient {
     };
     ws.onclose = () => {
       this.ws = null;
-      this._timer = setTimeout(() => this.connect(), 3000);
+      this._timer = setTimeout(() => this.connect(this._host), 3000);
     };
     this.ws = ws;
   }
@@ -133,7 +137,23 @@ export function applyTelemetry(data, els) {
 
   els.roll.textContent = data.roll_deg != null ? `${data.roll_deg.toFixed(1)}°` : "—";
   els.pitch.textContent = data.pitch_deg != null ? `${data.pitch_deg.toFixed(1)}°` : "—";
-  els.yaw.textContent = data.yaw_deg != null ? `${data.yaw_deg.toFixed(1)}°` : "—";
+  
+  if (data.yaw_deg != null) {
+    const yawTxt = `${data.yaw_deg.toFixed(1)}°`;
+    if (els.yaw) els.yaw.textContent = yawTxt;
+    if (els.camYaw) els.camYaw.textContent = yawTxt;
+    if (els.hudYaw) els.hudYaw.textContent = yawTxt;
+  } else {
+    if (els.yaw) els.yaw.textContent = "—";
+  }
+
+  if (data.zoom_level != null || data.zoom != null) {
+    const z = Number(data.zoom_level ?? data.zoom);
+    const zTxt = `${z.toFixed(1)}×`;
+    if (els.zoom) els.zoom.textContent = zTxt;
+    if (els.camZoom) els.camZoom.textContent = zTxt;
+    if (els.hudZoom) els.hudZoom.textContent = zTxt;
+  }
 
   if (data.timestamp) {
     const age = Math.max(0, (Date.now() / 1000) - data.timestamp);

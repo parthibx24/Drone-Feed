@@ -9,17 +9,17 @@ Your device (this app :8091)
         │ Tailscale
         ▼
 Raspberry Pi on drone
-  go2rtc :1984   ← video (browser connects direct)
-  drone-agent :8080 ← MAVLink telemetry (proxied via this app)
+  go2rtc (centralized) ← video (browser connects direct)
+  drone-agent :8080    ← MAVLink telemetry (proxied via this app)
 ```
 
 ## Setup
 
-```bash
-cd "/Users/startechnologiesinc/Documents/Rifat/Star Technologies/Drone_View"
+### Local Python Environment
 
+```bash
 cp .env.example .env
-# Edit .env — set DRONE_HOST to the Pi Tailscale IP
+# Edit .env — configure go2rtc URL and agent port
 
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
@@ -27,18 +27,45 @@ python3 -m venv .venv
 .venv/bin/python __main__.py
 ```
 
-Open **http://localhost:8091** (or `http://<this-device-ip>:8091` from another screen on the LAN).
+### Docker / Docker Compose
+
+```bash
+cp .env.example .env
+# Edit .env — configure go2rtc URL and agent port
+
+# Using Docker Compose (recommended)
+docker compose up -d
+
+# Or using Docker directly
+docker build -t drone-feed .
+docker run -d --name drone-feed --env-file .env -p 8091:8091 drone-feed
+```
+
+### Open in browser
+
+The drone IP and name are specified as **URL query parameters**:
+
+```
+http://localhost:8091/?host=100.91.79.23&name=kutwali
+```
+
+The `name` parameter is used as a **prefix for go2rtc stream names**:
+- `kutwali` → streams `kutwali_camera` + `kutwali_thermal`
+- `drone1` → streams `drone1_camera` + `drone1_thermal`
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `host`    | **Yes**  | Pi Tailscale IP, e.g. `100.91.79.23` |
+| `name`    | **Yes**  | Stream prefix & display name (e.g. `kutwali` → `kutwali_camera`, `kutwali_thermal`) |
+
+If either `?host=` or `?name=` is missing, the page shows an error prompt.
 
 ## `.env` options
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `DRONE_HOST` | *(required)* | Pi Tailscale IP, e.g. `100.91.79.23` |
-| `DRONE_NAME` | `Drone` | Shown in the header |
+| `GO2RTC_URL` | `https://cams.drone.starwatch.bb7fab11.sslip.io` | Centralized go2rtc server URL |
 | `AGENT_PORT` | `8080` | drone-agent on the Pi |
-| `GO2RTC_PORT` | `1984` | go2rtc on the Pi |
-| `STREAM` | `skydroid_camera` | Visible stream name |
-| `THERMAL_STREAM` | `skydroid_thermal` | Thermal stream name |
 | `VIEWER_HOST` | `0.0.0.0` | Bind address |
 | `VIEWER_PORT` | `8091` | Web UI port |
 
@@ -54,7 +81,7 @@ This viewer only **reads** telemetry and video; it does not replace the fleet da
 
 ## Copy to another device (no git)
 
-Copy the whole `Drone_View` folder, create `.env` with that drone’s IP, install deps, run `__main__.py`.
+Copy the whole `Drone_View` folder, install deps, run `__main__.py`. Point your browser to the drone's IP via the `?host=` and `?name=` query params.
 
 Exclude `.venv` when copying — recreate on each device:
 
@@ -66,7 +93,7 @@ rsync -avz --exclude '.venv' Drone_View/ user@device:/path/Drone_View/
 
 | | **Drone_View** | **Gimbal_Control** |
 |--|----------------|---------------------|
-| Drones | One (`.env`) | Many (`drones.yaml`) |
+| Drones | One (URL `?host=&name=`) | Many (`drones.yaml`) |
 | Video | Both feeds at once | Toggle visible/thermal |
 | Gimbal / mission / params | No | Yes |
 | Port | 8091 | 8090 |

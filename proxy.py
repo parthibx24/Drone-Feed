@@ -11,12 +11,37 @@ from fastapi import HTTPException, Response, WebSocket, WebSocketDisconnect
 
 logger = logging.getLogger(__name__)
 
+# ---- Shared persistent HTTP client (connection pooling) ----
+_client: httpx.AsyncClient | None = None
+
+
+def _get_client() -> httpx.AsyncClient:
+    """Return a long-lived AsyncClient with connection pooling."""
+    global _client
+    if _client is None or _client.is_closed:
+        _client = httpx.AsyncClient(
+            timeout=5.0,
+            limits=httpx.Limits(
+                max_connections=20,
+                max_keepalive_connections=10,
+                keepalive_expiry=30,
+            ),
+        )
+    return _client
+
+
+async def close_client() -> None:
+    """Shutdown the shared client (call during app lifespan teardown)."""
+    global _client
+    if _client and not _client.is_closed:
+        await _client.aclose()
+        _client = None
+
 
 async def proxy_get(agent_url: str, path: str, *, timeout: float = 5.0) -> Response:
     url = f"{agent_url.rstrip('/')}/{path.lstrip('/')}"
     try:
-        async with httpx.AsyncClient(timeout=timeout) as client:
-            resp = await client.get(url)
+        resp = await _get_client().get(url, timeout=timeout)
     except httpx.RequestError as exc:
         logger.warning("Proxy GET %s failed: %s", url, exc)
         raise HTTPException(status_code=502, detail=f"Drone unreachable: {exc}") from exc
@@ -40,8 +65,7 @@ async def proxy_request(
     url = f"{agent_url.rstrip('/')}/{path.lstrip('/')}"
     headers = {"Content-Type": content_type} if content_type else None
     try:
-        async with httpx.AsyncClient(timeout=timeout) as client:
-            resp = await client.request(method, url, content=body, headers=headers)
+        resp = await _get_client().request(method, url, content=body, headers=headers, timeout=timeout)
     except httpx.RequestError as exc:
         logger.warning("Proxy %s %s failed: %s", method, url, exc)
         raise HTTPException(status_code=502, detail=f"Drone unreachable: {exc}") from exc

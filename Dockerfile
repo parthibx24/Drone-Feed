@@ -8,10 +8,14 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# Install curl for container health check
+# Install curl for container health check and ffmpeg for server-side recording
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
+    ffmpeg \
  && rm -rf /var/lib/apt/lists/*
+
+RUN mkdir -p /app/recording /app/recordings
+
 
 # Install dependencies first for build caching
 COPY requirements.txt .

@@ -26,8 +26,6 @@ class DroneView {
       document.getElementById("overlay-thermal"),
       document.getElementById("status-thermal"),
     );
-    this.videoVis.setBadge(document.getElementById("badge-visible"));
-    this.videoTh.setBadge(document.getElementById("badge-thermal"));
     this.videoVis.onStateChange = (ok) => this.setPill("conn-video-vis", ok);
     this.videoTh.onStateChange = (ok) => this.setPill("conn-video-th", ok);
 
@@ -62,7 +60,25 @@ class DroneView {
 
     this.toast = document.getElementById("toast");
 
+    // ---- Recording state & elements ----
+    this.isRecording = false;
+    this.recStartTime = null;
+    this.recTimerInterval = null;
+
+    this.btnRecord = document.getElementById("btn-record");
+    this.recLabel = document.getElementById("rec-label");
+    this.recTimer = document.getElementById("rec-timer");
+    this.btnRecordings = document.getElementById("btn-recordings");
+    this.modalRecordings = document.getElementById("modal-recordings");
+    this.modalBackdrop = document.getElementById("modal-backdrop");
+    this.btnCloseRecordings = document.getElementById("btn-close-recordings");
+    this.btnRefreshRecordings = document.getElementById("btn-refresh-recordings");
+    this.sortSelect = document.getElementById("sort-select");
+    this.recordingsList = document.getElementById("recordings-list");
+    this.recordingsCount = document.getElementById("recordings-count");
+
     this._bindSpeedControl();
+    this._bindRecordingControls();
   }
 
   updateZoom(level) {
@@ -92,6 +108,310 @@ class DroneView {
       this.gimbalSpeed = parseFloat(e.target.value) || DEFAULT_GIMBAL_SPEED;
       if (valDisplay) valDisplay.textContent = this.gimbalSpeed;
     });
+  }
+
+  _bindRecordingControls() {
+    if (this.btnRecord) {
+      this.btnRecord.addEventListener("click", () => this.toggleRecording());
+    }
+    if (this.btnRecordings) {
+      this.btnRecordings.addEventListener("click", () => this.openRecordingsModal());
+    }
+    if (this.btnCloseRecordings) {
+      this.btnCloseRecordings.addEventListener("click", () => this.closeRecordingsModal());
+    }
+    if (this.modalBackdrop) {
+      this.modalBackdrop.addEventListener("click", () => this.closeRecordingsModal());
+    }
+    if (this.btnRefreshRecordings) {
+      this.btnRefreshRecordings.addEventListener("click", () => this.loadRecordings());
+    }
+    if (this.sortSelect) {
+      this.sortSelect.addEventListener("change", () => this.loadRecordings());
+    }
+
+    window.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && this.modalRecordings && !this.modalRecordings.classList.contains("hidden")) {
+        this.closeRecordingsModal();
+      }
+    });
+  }
+
+  async syncRecordingStatus() {
+    try {
+      const resp = await fetch("/api/recording/status");
+      if (resp.ok) {
+        const data = await resp.json();
+        const droneStatus = (data.by_drone && this.name) ? data.by_drone[this.name] : (data.drone_name === this.name ? data : null);
+        if (droneStatus && droneStatus.is_recording) {
+          this.setRecordingState(droneStatus.state || "recording", droneStatus.start_time, droneStatus.init_time, droneStatus.message);
+        } else if (this.isRecording) {
+          this.setRecordingState("idle");
+        }
+      }
+    } catch { /* offline or server restarting */ }
+  }
+
+
+  async toggleRecording() {
+    if (this.btnRecord?.classList.contains("stopping")) return;
+    if (this.isRecording) {
+      await this.stopRecording();
+    } else {
+      await this.startRecording();
+    }
+  }
+
+  async startRecording() {
+    if (!this.name) return;
+    this.recLabel.textContent = "STARTING…";
+    try {
+      const resp = await fetch(`/api/recording/start?name=${encodeURIComponent(this.name)}`, {
+        method: "POST",
+      });
+      const data = await resp.json();
+      if (resp.ok) {
+        const state = data.state || "waiting";
+        this.setRecordingState(state, data.start_time, data.init_time, data.message);
+        if (state === "waiting") {
+          this.toastMsg("Waiting for active camera feed from go2rtc…");
+        } else {
+          this.toastMsg("Recording started (Visible + Thermal MKV)");
+        }
+      } else {
+        this.setRecordingState("idle");
+        this.toastMsg(`Record failed: ${data.detail || "Server error"}`);
+      }
+    } catch (err) {
+      this.setRecordingState("idle");
+      this.toastMsg(`Record error: ${err.message}`);
+    }
+  }
+
+  async stopRecording() {
+    if (!this.name) return;
+    if (this.btnRecord) this.btnRecord.classList.add("stopping");
+    this.recLabel.textContent = "SAVING…";
+    try {
+      const resp = await fetch(`/api/recording/stop?name=${encodeURIComponent(this.name)}`, {
+        method: "POST",
+      });
+      const data = await resp.json();
+      this.setRecordingState("idle");
+      if (resp.ok) {
+        if (data.status === "recording_cancelled") {
+          this.toastMsg(data.message || "Recording cancelled");
+        } else {
+          const dur = data.duration_formatted || `${data.duration_sec}s`;
+          const sz = data.file_size_human || "";
+          this.toastMsg(`Saved ${data.filename} (${dur}, ${sz})`);
+        }
+      } else {
+        this.toastMsg(`Stop record failed: ${data.detail || "Server error"}`);
+      }
+    } catch (err) {
+      this.setRecordingState("idle");
+      this.toastMsg(`Stop error: ${err.message}`);
+    } finally {
+      if (this.btnRecord) this.btnRecord.classList.remove("stopping");
+    }
+  }
+
+  setRecordingState(state, startTime = null, initTime = null, message = null) {
+    this.recState = state;
+    this.isRecording = state === "recording" || state === "waiting";
+
+    if (!this.btnRecord) return;
+
+    if (state === "waiting") {
+      this._stopRecTimer();
+      this.btnRecord.classList.remove("recording");
+      this.btnRecord.classList.add("waiting");
+      this.btnRecord.title = "Waiting for active camera feed from go2rtc… Click to cancel.";
+      if (this.recLabel) this.recLabel.textContent = "WAITING…";
+      if (this.recTimer) {
+        this.recTimer.classList.add("hidden");
+        this.recTimer.textContent = "00:00";
+      }
+    } else if (state === "recording") {
+      this.recStartTime = startTime || (Date.now() / 1000);
+      this.btnRecord.classList.remove("waiting");
+      this.btnRecord.classList.add("recording");
+      this.btnRecord.title = "Stop dual-stream recording";
+      if (this.recLabel) this.recLabel.textContent = "STOP REC";
+      if (this.recTimer) this.recTimer.classList.remove("hidden");
+      this._startRecTimer();
+    } else {
+      this._stopRecTimer();
+      this.btnRecord.classList.remove("recording", "waiting");
+      this.btnRecord.title = "Record dual visible + thermal feeds to MKV (zero-encoding)";
+      if (this.recLabel) this.recLabel.textContent = "REC";
+      if (this.recTimer) {
+        this.recTimer.classList.add("hidden");
+        this.recTimer.textContent = "00:00";
+      }
+    }
+  }
+
+  setRecordingActive(active, startTime = null) {
+    this.setRecordingState(active ? "recording" : "idle", startTime);
+  }
+
+
+  _startRecTimer() {
+    this._stopRecTimer();
+    const update = () => {
+      const elapsed = Math.max(0, Math.floor((Date.now() / 1000) - this.recStartTime));
+      const mins = Math.floor(elapsed / 60);
+      const secs = elapsed % 60;
+      const hrs = Math.floor(mins / 60);
+      let formatted = `${String(mins % 60).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+      if (hrs > 0) {
+        formatted = `${String(hrs).padStart(2, "0")}:${formatted}`;
+      }
+      if (this.recTimer) this.recTimer.textContent = formatted;
+    };
+    update();
+    this.recTimerInterval = setInterval(update, 1000);
+  }
+
+  _stopRecTimer() {
+    if (this.recTimerInterval) {
+      clearInterval(this.recTimerInterval);
+      this.recTimerInterval = null;
+    }
+  }
+
+  openRecordingsModal() {
+    if (this.modalRecordings) {
+      this.modalRecordings.classList.remove("hidden");
+      this.loadRecordings();
+    }
+  }
+
+  closeRecordingsModal() {
+    if (this.modalRecordings) {
+      this.modalRecordings.classList.add("hidden");
+    }
+  }
+
+  async loadRecordings() {
+    if (!this.recordingsList) return;
+    this.recordingsList.innerHTML = '<div class="empty-state">Loading recordings…</div>';
+
+    let sortBy = "time";
+    let order = "desc";
+    if (this.sortSelect && this.sortSelect.value) {
+      const parts = this.sortSelect.value.split("-");
+      sortBy = parts[0] || "time";
+      order = parts[1] || "desc";
+    }
+
+    try {
+      const url = `/api/recordings?sort_by=${encodeURIComponent(sortBy)}&order=${encodeURIComponent(order)}`;
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const items = await resp.json();
+
+      if (this.recordingsCount) {
+        this.recordingsCount.textContent = `${items.length} ${items.length === 1 ? "clip" : "clips"}`;
+      }
+
+      if (!items || items.length === 0) {
+        this.recordingsList.innerHTML = '<div class="empty-state">No recordings found. Click REC to start capturing visible + thermal streams.</div>';
+        return;
+      }
+
+      this.recordingsList.innerHTML = "";
+      for (const item of items) {
+        const el = this._createRecordingCard(item);
+        this.recordingsList.appendChild(el);
+      }
+    } catch (err) {
+      this.recordingsList.innerHTML = `<div class="empty-state">Failed to load recordings: ${err.message}</div>`;
+    }
+  }
+
+  _createRecordingCard(item) {
+    const card = document.createElement("div");
+    card.className = `rec-item ${item.is_active ? "active-recording" : ""}`;
+
+    const dateStr = item.created_at ? new Date(item.created_at).toLocaleString() : "—";
+    const durStr = item.duration_formatted || (item.duration_sec != null ? `${item.duration_sec}s` : "—");
+    const sizeStr = item.file_size_human || "—";
+
+    let streamPillsHtml = "";
+    if (Array.isArray(item.streams) && item.streams.length > 0) {
+      streamPillsHtml = item.streams.map((s) => {
+        const isThermal = s.role === "thermal" || s.index === 1;
+        const res = s.resolution || (s.width && s.height ? `${s.width}x${s.height}` : null);
+        const fpsStr = s.fps ? `${s.fps}fps` : "";
+        const codecStr = s.codec_name ? s.codec_name.toUpperCase() : "";
+        const label = isThermal ? "Thermal" : "Visible";
+        const details = [codecStr, res, fpsStr].filter(Boolean).join(" · ");
+        return `<span class="stream-pill ${isThermal ? "thermal" : ""}" title="Video Track ${s.index}">${label}: ${details}</span>`;
+      }).join("");
+    } else {
+      streamPillsHtml = `<span class="stream-pill" title="Dual-stream copy">Dual Track (MKV)</span>`;
+    }
+
+    card.innerHTML = `
+      <div class="rec-info">
+        <div class="rec-title-row">
+          <span class="rec-filename">${this._escapeHtml(item.filename)}</span>
+          ${item.is_active ? '<span class="rec-badge live">● RECORDING NOW</span>' : ''}
+          <span class="rec-badge mono">${item.drone_name || "drone"}</span>
+        </div>
+        <div class="rec-meta-row mono">
+          <div class="rec-meta-item"><span>🕒</span> <span class="meta-val">${dateStr}</span></div>
+          <div class="rec-meta-item"><span>⏱</span> <span class="meta-val">${durStr}</span></div>
+          <div class="rec-meta-item"><span>💾</span> <span class="meta-val">${sizeStr}</span></div>
+        </div>
+        <div class="rec-streams">${streamPillsHtml}</div>
+      </div>
+      <div class="rec-item-actions">
+        <a href="${item.download_url}" download="${item.filename}" class="btn-action btn-download" title="Download MKV video">
+          ⬇ Download
+        </a>
+        <button class="btn-action btn-delete" title="Delete recording" ${item.is_active ? "disabled" : ""}>
+          🗑
+        </button>
+      </div>
+    `;
+
+    const deleteBtn = card.querySelector(".btn-delete");
+    if (deleteBtn && !item.is_active) {
+      deleteBtn.addEventListener("click", async () => {
+        const targetPath = item.relative_path || item.filename;
+        if (confirm(`Delete recording '${item.filename}'?`)) {
+          try {
+            const resp = await fetch(`/api/recordings/${encodeURIComponent(targetPath)}`, {
+              method: "DELETE",
+            });
+            if (resp.ok) {
+              this.toastMsg(`Deleted ${item.filename}`);
+              this.loadRecordings();
+            } else {
+              const err = await resp.json();
+              this.toastMsg(`Delete failed: ${err.detail || "Server error"}`);
+            }
+          } catch (e) {
+            this.toastMsg(`Delete error: ${e.message}`);
+          }
+        }
+      });
+    }
+
+    return card;
+  }
+
+  _escapeHtml(str) {
+    if (!str) return "";
+    return String(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
   }
 
   _bindControls() {
@@ -199,6 +519,11 @@ class DroneView {
         this.handleAction("zoom-reset").catch(() => {});
         return;
       }
+      if (e.key === "r" || e.key === "R") {
+        // Toggle recording with hotkey 'R'
+        this.toggleRecording();
+        return;
+      }
       const dir = keys[e.key];
       if (dir && activeKey !== e.key) {
         e.preventDefault();
@@ -227,8 +552,10 @@ class DroneView {
   async init() {
     // ---- Read drone host & name from URL query params ----
     const params = new URLSearchParams(window.location.search);
-    this.host = params.get("host");
-    this.name = params.get("name");
+    const rawHost = params.get("host");
+    const rawName = params.get("name");
+    this.host = rawHost ? rawHost.trim().replace(/^["']|["']$/g, "") : null;
+    this.name = rawName ? rawName.trim().replace(/^["']|["']$/g, "") : null;
 
     if (!this.host || !this.name) {
       const missing = !this.host && !this.name ? "host and name"
@@ -256,7 +583,7 @@ class DroneView {
     document.getElementById("drone-host").textContent = this.host;
 
     // ---- go2rtc URL from server config; stream names from name prefix ----
-    const go2rtcUrl = this.config.go2rtc_url;
+    const go2rtcUrl = (this.config.go2rtc_url || "").trim().replace(/^["']|["']$/g, "").replace(/\/+$/, "");
     const visibleStream = `${this.name}_camera`;
     const thermalStream = `${this.name}_thermal`;
 
@@ -277,8 +604,10 @@ class DroneView {
     // otherwise a failing/slow go2rtc connect would prevent MAVLink from showing.
     this.pollHealth();
     this.pollTelemetry();
+    this.syncRecordingStatus();
     setInterval(() => this.pollHealth(), 5000);
     setInterval(() => this.pollTelemetry(), 1000);
+    setInterval(() => this.syncRecordingStatus(), 3000);
 
     // Video runs independently; swallow errors so it can't break the dashboard.
     this.videoVis
@@ -333,3 +662,4 @@ class DroneView {
 new DroneView().init().catch((err) => {
   console.error(err);
 });
+

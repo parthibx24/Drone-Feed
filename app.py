@@ -7,13 +7,14 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import AsyncIterator
 
-from fastapi import FastAPI, Query, Request, WebSocket
+from fastapi import FastAPI, HTTPException, Query, Request, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from config import ViewerSettings, build_drone_urls
+from config import ViewerSettings, build_drone_urls, build_rtsp_urls
 from proxy import close_client, proxy_get, proxy_request, proxy_websocket
+from recorder import RecordingManager
 
 logger = logging.getLogger(__name__)
 STATIC = Path(__file__).resolve().parent / "static"
@@ -21,6 +22,7 @@ STATIC = Path(__file__).resolve().parent / "static"
 
 def create_app(settings: ViewerSettings | None = None) -> FastAPI:
     cfg = settings or ViewerSettings()
+    recorder = RecordingManager(cfg.recordings_dir)
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
@@ -30,10 +32,12 @@ def create_app(settings: ViewerSettings | None = None) -> FastAPI:
             cfg.viewer_port,
         )
         yield
+        await recorder.cleanup_all()
         await close_client()
 
     app = FastAPI(title="Drone View", version="1.0.0", lifespan=lifespan)
     app.state.settings = cfg
+    app.state.recorder = recorder
 
     app.add_middleware(
         CORSMiddleware,
@@ -81,9 +85,73 @@ def create_app(settings: ViewerSettings | None = None) -> FastAPI:
         urls = build_drone_urls(host, cfg)
         await proxy_websocket(websocket, urls["mavlink_ws_url"])
 
+    # ---- Server-side Recording Endpoints ----
+
+    @app.post("/api/recording/start")
+    async def start_recording(
+        name: str = Query(..., description="Drone name prefix for stream ingestion"),
+    ):
+        rtsp_urls = build_rtsp_urls(name, cfg)
+        try:
+            result = await recorder.start_recording(
+                drone_name=name,
+                visible_rtsp_url=rtsp_urls["visible_rtsp_url"],
+                thermal_rtsp_url=rtsp_urls["thermal_rtsp_url"],
+                go2rtc_url=cfg.go2rtc_url,
+            )
+            return result
+        except RuntimeError as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post("/api/recording/stop")
+    async def stop_recording(
+        name: str = Query(..., description="Drone name prefix"),
+    ):
+        return await recorder.stop_recording(name)
+
+    @app.get("/api/recording/status")
+    async def recording_status(
+        name: str | None = Query(None, description="Optional drone name prefix"),
+    ):
+        return recorder.get_status(name)
+
+
+    @app.get("/api/recordings")
+    async def list_recordings(
+        name: str | None = Query(None, description="Filter recordings by drone name"),
+        sort_by: str = Query("time", description="Sort by 'time', 'duration', 'size', or 'name'"),
+        order: str = Query("desc", description="Order 'asc' or 'desc'"),
+    ):
+        return await recorder.list_recordings(drone_name=name, sort_by=sort_by, order=order)
+
+    @app.api_route("/api/recordings/download/{filename:path}", methods=["GET", "HEAD"])
+    async def download_recording(filename: str):
+        filepath = recorder.get_recording_path(filename)
+        if not filepath:
+            raise HTTPException(status_code=404, detail="Recording file not found")
+        media_type = "video/x-matroska" if filename.endswith(".mkv") else "video/mp4"
+        return FileResponse(
+            path=filepath,
+            filename=filepath.name,
+            media_type=media_type,
+        )
+
+    @app.delete("/api/recordings/{filename:path}")
+    async def delete_recording(filename: str):
+        try:
+            success = await recorder.delete_recording(filename)
+            if not success:
+                raise HTTPException(status_code=404, detail="Recording file not found")
+            return {"deleted": True, "filename": filename}
+        except RuntimeError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     @app.get("/")
     async def index():
         return FileResponse(STATIC / "index.html")
 
     app.mount("/static", StaticFiles(directory=STATIC), name="static")
     return app
+

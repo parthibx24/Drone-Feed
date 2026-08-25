@@ -71,18 +71,27 @@
           <input id="speed-slider" type="range" min="1" max="20" value="4" step="1" class="speed-slider" />
           <span id="speed-value" class="speed-value mono">4</span>
         </label>
+        <span class="cam-sep"></span>
+        <div class="cam-group rec-group">
+          <button id="btn-record" class="record-btn" title="Record dual visible + thermal feeds to MKV (zero-encoding)">
+            <span class="rec-dot"></span>
+            <span id="rec-label">REC</span>
+            <span id="rec-timer" class="rec-timer mono hidden">00:00</span>
+          </button>
+          <button id="btn-recordings" class="cam-btn" title="View recordings library">📁</button>
+        </div>
       </div>
 
       <section class="feeds">
         <article class="feed-card">
-          <div class="feed-head"><span>Visible</span><span id="badge-visible" class="feed-badge mono"><span class="badge-transport">—</span><span class="badge-sep">·</span><span class="badge-fps">—</span></span></div>
+          <div class="feed-head"><span>Visible</span></div>
           <div class="video-wrap">
             <video id="video-visible" autoplay playsinline muted></video>
             <div id="overlay-visible" class="overlay hidden"><span id="status-visible">Connecting…</span></div>
           </div>
         </article>
         <article class="feed-card">
-          <div class="feed-head"><span>Thermal</span><span id="badge-thermal" class="feed-badge mono"><span class="badge-transport">—</span><span class="badge-sep">·</span><span class="badge-fps">—</span></span></div>
+          <div class="feed-head"><span>Thermal</span></div>
           <div class="video-wrap thermal">
             <video id="video-thermal" autoplay playsinline muted></video>
             <div id="overlay-thermal" class="overlay hidden"><span id="status-thermal">Connecting…</span></div>
@@ -131,7 +140,40 @@
     </footer>
   </div>
 
+  <!-- Recordings Library Modal -->
+  <div id="modal-recordings" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal-backdrop" id="modal-backdrop"></div>
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <h2 id="modal-title">Recordings Library</h2>
+          <span id="recordings-count" class="badge-count mono">0 clips</span>
+        </div>
+        <div class="modal-actions">
+          <div class="sort-group">
+            <label for="sort-select" class="sort-label">Sort:</label>
+            <select id="sort-select" class="modal-select">
+              <option value="time-desc">Newest First</option>
+              <option value="time-asc">Oldest First</option>
+              <option value="duration-desc">Longest Duration</option>
+              <option value="duration-asc">Shortest Duration</option>
+              <option value="size-desc">Largest Size</option>
+            </select>
+          </div>
+          <button id="btn-refresh-recordings" class="modal-btn modal-btn-secondary" title="Refresh list">↻ Refresh</button>
+          <button id="btn-close-recordings" class="modal-close-btn" title="Close">✕</button>
+        </div>
+      </div>
+      <div class="modal-body">
+        <div id="recordings-list" class="recordings-list">
+          <div class="empty-state">Loading recordings…</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script type="module" src="/static/js/app.js"></script>
+
 </body>
 </html>

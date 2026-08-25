@@ -137,19 +137,6 @@ body {
   border-bottom: 1px solid var(--border);
 }
 
-/* Transport + FPS badge — right side of feed header */
-.feed-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  font-size: 0.62rem;
-  font-weight: 600;
-  letter-spacing: 0.03em;
-}
-
-.badge-transport { color: var(--accent); }
-.badge-sep { opacity: 0.35; }
-.badge-fps { color: var(--text); }
 
 .video-wrap {
   position: relative;
@@ -432,3 +419,410 @@ video {
   border: 2px solid #fff;
   box-shadow: 0 0 8px rgba(0, 212, 170, 0.6);
 }
+
+/* ==========================================================================
+   Recording Controls & Live Indicator
+   ========================================================================== */
+
+.rec-group {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.record-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  height: 36px;
+  padding: 0 0.75rem;
+  border-radius: 8px;
+  background: rgba(17, 24, 32, 0.55);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.record-btn:hover {
+  background: #1c2734;
+  border-color: color-mix(in srgb, var(--danger) 40%, var(--border));
+  color: #fff;
+}
+
+.record-btn .rec-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--danger);
+  opacity: 0.6;
+  transition: all 0.2s ease;
+}
+
+.record-btn.waiting {
+  background: rgba(251, 191, 36, 0.12);
+  border-color: var(--warning);
+  color: #fde68a;
+  box-shadow: 0 0 12px rgba(251, 191, 36, 0.25);
+}
+
+.record-btn.waiting .rec-dot {
+  opacity: 1;
+  background: var(--warning);
+  box-shadow: 0 0 8px var(--warning);
+  animation: rec-pulse 1.2s infinite ease-in-out;
+}
+
+.record-btn.recording {
+  background: rgba(248, 113, 113, 0.12);
+  border-color: var(--danger);
+  color: #fca5a5;
+  box-shadow: 0 0 12px rgba(248, 113, 113, 0.25);
+}
+
+.record-btn.recording .rec-dot {
+  opacity: 1;
+  background: var(--danger);
+  box-shadow: 0 0 8px var(--danger);
+  animation: rec-pulse 1.2s infinite ease-in-out;
+}
+
+.record-btn.stopping {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.rec-timer {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--danger);
+  padding: 0.05rem 0.3rem;
+  background: rgba(248, 113, 113, 0.15);
+  border-radius: 4px;
+}
+
+@keyframes rec-pulse {
+  0% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.35); opacity: 0.35; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+
+/* ==========================================================================
+   Recordings Manager Modal Dialog
+   ========================================================================== */
+
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.modal.hidden {
+  display: none;
+}
+
+.modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(4, 7, 11, 0.82);
+  backdrop-filter: blur(5px);
+}
+
+.modal-card {
+  position: relative;
+  z-index: 1;
+  width: min(94vw, 840px);
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.7), 0 0 1px rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+  animation: modal-appear 0.18s ease-out;
+}
+
+@keyframes modal-appear {
+  from { opacity: 0; transform: scale(0.97) translateY(8px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem 1.25rem;
+  background: #111720;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.modal-title-group {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.modal-title-group h2 {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.badge-count {
+  font-size: 0.68rem;
+  padding: 0.18rem 0.55rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--dim);
+}
+
+.modal-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.sort-group {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  color: var(--dim);
+}
+
+.modal-select {
+  background: #090d12;
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 0.28rem 0.55rem;
+  font-size: 0.75rem;
+  font-family: var(--font);
+  outline: none;
+  cursor: pointer;
+}
+
+.modal-select:hover, .modal-select:focus {
+  border-color: var(--accent);
+}
+
+.modal-btn {
+  padding: 0.28rem 0.65rem;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-family: var(--font);
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: #151d26;
+  color: var(--text);
+  transition: all 0.15s ease;
+}
+
+.modal-btn:hover {
+  background: #1f2a37;
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.modal-close-btn {
+  background: transparent;
+  border: none;
+  color: var(--dim);
+  font-size: 1rem;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.modal-close-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text);
+}
+
+.modal-body {
+  padding: 1.1rem 1.25rem;
+  overflow-y: auto;
+  flex: 1;
+  max-height: calc(85vh - 70px);
+}
+
+.recordings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: var(--dim);
+  font-size: 0.85rem;
+}
+
+.rec-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.8rem 1rem;
+  background: #090d12;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.rec-item:hover {
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+  background: #0d131a;
+}
+
+.rec-item.active-recording {
+  border-color: color-mix(in srgb, var(--danger) 50%, var(--border));
+  background: rgba(248, 113, 113, 0.05);
+}
+
+.rec-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.rec-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.rec-filename {
+  font-weight: 600;
+  font-size: 0.84rem;
+  color: var(--text);
+  word-break: break-all;
+}
+
+.rec-badge {
+  font-size: 0.65rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--dim);
+  font-weight: 600;
+}
+
+.rec-badge.live {
+  background: rgba(248, 113, 113, 0.2);
+  color: var(--danger);
+  animation: rec-pulse 1.2s infinite;
+}
+
+.rec-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  font-size: 0.72rem;
+  color: var(--dim);
+  flex-wrap: wrap;
+}
+
+.rec-meta-item {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.rec-meta-item .meta-val {
+  color: var(--text);
+}
+
+.rec-streams {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.1rem;
+  flex-wrap: wrap;
+}
+
+.stream-pill {
+  font-size: 0.65rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  background: rgba(0, 212, 170, 0.1);
+  color: var(--accent);
+  border: 1px solid rgba(0, 212, 170, 0.25);
+  font-family: var(--mono);
+}
+
+.stream-pill.thermal {
+  background: rgba(251, 191, 36, 0.1);
+  color: var(--warning);
+  border-color: rgba(251, 191, 36, 0.25);
+}
+
+.rec-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-shrink: 0;
+}
+
+.btn-action {
+  padding: 0.32rem 0.65rem;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-family: var(--font);
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  transition: all 0.15s ease;
+}
+
+.btn-download {
+  background: rgba(0, 212, 170, 0.12);
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+  color: var(--accent);
+}
+
+.btn-download:hover {
+  background: var(--accent);
+  color: #06090d;
+  border-color: var(--accent);
+  font-weight: 600;
+}
+
+.btn-delete {
+  background: transparent;
+  color: var(--dim);
+  border-color: transparent;
+}
+
+.btn-delete:hover {
+  background: rgba(248, 113, 113, 0.15);
+  color: var(--danger);
+  border-color: var(--danger);
+}
+

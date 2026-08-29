@@ -37,8 +37,7 @@
       <div class="status-cluster">
         <div id="conn-agent" class="pill"><span class="dot"></span>Agent</div>
         <div id="conn-mavlink" class="pill"><span class="dot"></span>MAVLink</div>
-        <div id="conn-video-vis" class="pill"><span class="dot"></span>Visible</div>
-        <div id="conn-video-th" class="pill"><span class="dot"></span>Thermal</div>
+        <!-- Per-camera pills are appended here at page load -->
       </div>
     </header>
 
@@ -73,7 +72,7 @@
         </label>
         <span class="cam-sep"></span>
         <div class="cam-group rec-group">
-          <button id="btn-record" class="record-btn" title="Record dual visible + thermal feeds to MKV (zero-encoding)">
+          <button id="btn-record" class="record-btn" title="Record all camera feeds to a single MKV (zero-encoding)">
             <span class="rec-dot"></span>
             <span id="rec-label">REC</span>
             <span id="rec-timer" class="rec-timer mono hidden">00:00</span>
@@ -82,21 +81,8 @@
         </div>
       </div>
 
-      <section class="feeds">
-        <article class="feed-card">
-          <div class="feed-head"><span>Visible</span></div>
-          <div class="video-wrap">
-            <video id="video-visible" autoplay playsinline muted></video>
-            <div id="overlay-visible" class="overlay hidden"><span id="status-visible">Connecting…</span></div>
-          </div>
-        </article>
-        <article class="feed-card">
-          <div class="feed-head"><span>Thermal</span></div>
-          <div class="video-wrap thermal">
-            <video id="video-thermal" autoplay playsinline muted></video>
-            <div id="overlay-thermal" class="overlay hidden"><span id="status-thermal">Connecting…</span></div>
-          </div>
-        </article>
+      <section class="feeds" id="feeds">
+        <!-- One feed card per discovered camera, built at page load -->
       </section>
 
       <section class="data-panel">
@@ -168,6 +154,27 @@
         <div id="recordings-list" class="recordings-list">
           <div class="empty-state">Loading recordings…</div>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Recording Preview Modal (one synced <video> per track) -->
+  <div id="modal-preview" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="preview-title">
+    <div class="modal-backdrop" id="preview-backdrop"></div>
+    <div class="modal-card preview-card">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <h2 id="preview-title">Preview</h2>
+        </div>
+        <div class="modal-actions">
+          <span id="preview-time" class="preview-time mono">00:00 / 00:00</span>
+          <input id="preview-seek" type="range" min="0" max="10" step="0.1" value="0" class="preview-seek" />
+          <button id="btn-preview-play" class="modal-btn modal-btn-secondary" title="Play/pause all tracks">▶ Play all</button>
+          <button id="btn-close-preview" class="modal-close-btn" title="Close">✕</button>
+        </div>
+      </div>
+      <div class="modal-body">
+        <div id="preview-videos" class="preview-grid"></div>
       </div>
     </div>
   </div>

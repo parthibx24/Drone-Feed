@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse
 
 ROOT = Path(__file__).resolve().parent
 
@@ -22,6 +23,7 @@ class ViewerSettings(BaseSettings):
     agent_port: int = 8080
     go2rtc_url: str = "https://cams.drone.starwatch.bb7fab11.sslip.io"
     go2rtc_rtsp_url: str = ""
+    go2rtc_ingest_mode: str = "rtsp"
     recording_path: Path = Field(
         default_factory=lambda: ROOT / "recording",
         validation_alias="RECORDING_PATH",
@@ -62,6 +64,14 @@ class ViewerSettings(BaseSettings):
         return v
 
 
+    @field_validator("go2rtc_ingest_mode", mode="before")
+    @classmethod
+    def clean_ingest_mode(cls, v: str) -> str:
+        mode = str(v or "rtsp").strip().lower()
+        if mode not in ("rtsp", "mp4", "hls"):
+            raise ValueError("go2rtc_ingest_mode must be one of: rtsp, mp4, hls")
+        return mode
+
     def get_rtsp_base_url(self) -> str:
         """Return base RTSP URL (e.g. rtsp://host:8554) for stream ingestion."""
         if self.go2rtc_rtsp_url:
@@ -88,12 +98,31 @@ def build_drone_urls(host: str, cfg: ViewerSettings) -> dict:
     }
 
 
-def build_rtsp_urls(drone_name: str, cfg: ViewerSettings) -> dict[str, str]:
-    """Build RTSP stream URLs for both visible and thermal feeds of a drone."""
+def build_rtsp_urls(drone_name: str, cfg: ViewerSettings, stream_names: list[str] | None = None) -> dict[str, str]:
+    """Build RTSP stream URLs for a drone, keyed by full stream name.
+
+    When stream_names is omitted, falls back to the conventional
+    {name}_camera / {name}_thermal pair.
+    """
     clean_name = drone_name.strip().strip("'\"")
     rtsp_base = cfg.get_rtsp_base_url()
-    return {
-        "visible_rtsp_url": f"{rtsp_base}/{clean_name}_camera",
-        "thermal_rtsp_url": f"{rtsp_base}/{clean_name}_thermal",
-    }
+    if stream_names is None:
+        stream_names = [f"{clean_name}_camera", f"{clean_name}_thermal"]
+    return {name: f"{rtsp_base}/{name}" for name in stream_names}
+
+
+def build_stream_sources(cfg: ViewerSettings, stream_names: list[str]) -> dict[str, str]:
+    """Build recorder ingest URLs (name → URL) per the configured ingest mode.
+
+    - rtsp: rtsp://host:8554/{name}          (default; needs the RTSP port reachable)
+    - mp4:  {go2rtc_url}/api/stream.mp4      (fragmented MP4 over HTTP(S) — same path the browser uses)
+    - hls:  {go2rtc_url}/api/stream.m3u8     (HLS over HTTP(S); higher latency, fine for recording)
+    """
+    mode = cfg.go2rtc_ingest_mode
+    if mode == "rtsp":
+        rtsp_base = cfg.get_rtsp_base_url()
+        return {name: f"{rtsp_base}/{name}" for name in stream_names}
+    base = cfg.go2rtc_url.strip().strip("'\"").rstrip("/")
+    kind = "mp4" if mode == "mp4" else "m3u8"
+    return {name: f"{base}/api/stream.{kind}?src={quote(name, safe='')}" for name in stream_names}
 

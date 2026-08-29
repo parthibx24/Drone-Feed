@@ -6,6 +6,7 @@ import {
   applyTelemetry,
 } from "./mavlink.js";
 import { GimbalClient } from "./gimbal.js";
+import { MultiTrackPlayer, canUseClientPreview } from "./preview.js";
 
 const DEFAULT_GIMBAL_SPEED = 4;
 
@@ -15,19 +16,7 @@ class DroneView {
     this.host = null;
     this.name = null;
     this.gimbalSpeed = DEFAULT_GIMBAL_SPEED;
-
-    this.videoVis = new VideoPlayer(
-      document.getElementById("video-visible"),
-      document.getElementById("overlay-visible"),
-      document.getElementById("status-visible"),
-    );
-    this.videoTh = new VideoPlayer(
-      document.getElementById("video-thermal"),
-      document.getElementById("overlay-thermal"),
-      document.getElementById("status-thermal"),
-    );
-    this.videoVis.onStateChange = (ok) => this.setPill("conn-video-vis", ok);
-    this.videoTh.onStateChange = (ok) => this.setPill("conn-video-th", ok);
+    this.players = [];
 
     this.mavlink = new MavlinkClient((d) => this.onTelemetry(d));
     this.attitude = new AttitudeIndicator(document.getElementById("attitude"));
@@ -77,8 +66,19 @@ class DroneView {
     this.recordingsList = document.getElementById("recordings-list");
     this.recordingsCount = document.getElementById("recordings-count");
 
+    // ---- Preview state & elements ----
+    this.previewPlayer = null;
+    this._seekDragging = false;
+    this.modalPreview = document.getElementById("modal-preview");
+    this.previewBackdrop = document.getElementById("preview-backdrop");
+    this.previewTitle = document.getElementById("preview-title");
+    this.previewContainer = document.getElementById("preview-videos");
+    this.btnPreviewPlay = document.getElementById("btn-preview-play");
+    this.btnClosePreview = document.getElementById("btn-close-preview");
+
     this._bindSpeedControl();
     this._bindRecordingControls();
+    this._bindPreviewControls();
   }
 
   updateZoom(level) {
@@ -131,10 +131,127 @@ class DroneView {
     }
 
     window.addEventListener("keydown", (e) => {
-      if (e.key === "Escape" && this.modalRecordings && !this.modalRecordings.classList.contains("hidden")) {
-        this.closeRecordingsModal();
+      if (e.key === "Escape") {
+        if (this.modalPreview && !this.modalPreview.classList.contains("hidden")) {
+          this.closePreview();
+          return;
+        }
+        if (this.modalRecordings && !this.modalRecordings.classList.contains("hidden")) {
+          this.closeRecordingsModal();
+        }
       }
     });
+  }
+
+  // ---- Multi-track preview: client-side WebCodecs decode of the MKV ----
+
+  async openPreview(item) {
+    if (this.modalPreview && this.modalPreview.classList.contains("hidden")) {
+      this.closePreview();
+    }
+    if (!this.modalPreview || !this.previewContainer) return;
+    this.previewTitle.textContent = item.filename;
+
+    this.modalPreview.classList.remove("hidden");
+    this.previewContainer.innerHTML =
+      '<div class="empty-state">Loading preview…</div>';
+
+    for (const id of ["btn-preview-play", "preview-seek", "preview-time"]) {
+      const el = document.getElementById(id);
+      if (el) el.classList.remove("hidden");
+    }
+
+    try {
+      await this.openClientPreview(item);
+    } catch (err) {
+      console.warn("MKV preview failed:", err);
+      this.closePreviewPlayer();
+      this.previewContainer.innerHTML =
+        `<div class="empty-state">Preview failed: ${err.message}. Download the MKV instead.</div>`;
+    }
+  }
+
+  async openClientPreview(item) {
+    const url = item.download_url;
+    if (!url || !canUseClientPreview()) {
+      throw new Error("WebCodecs unavailable");
+    }
+
+    const labels = [];
+    const streamInfos = Array.isArray(item.streams) ? item.streams : [];
+    for (let i = 0; i < Math.max(1, item.stream_count || streamInfos.length || 1); i++) {
+      labels.push(streamInfos[i] && streamInfos[i].role ? streamInfos[i].role : `Track ${i + 1}`);
+    }
+
+    this.previewPlayer = new MultiTrackPlayer(
+      this.previewContainer,
+      labels,
+      (state) => this.updatePreviewTransport(state),
+    );
+    await this.previewPlayer.load(url);
+    this.updatePreviewTransport(this.previewPlayer.state());
+  }
+
+  updatePreviewTransport(state) {
+    if (this.btnPreviewPlay) {
+      this.btnPreviewPlay.textContent = state.playing ? "⏸ Pause" : "▶ Play all";
+    }
+    const seek = document.getElementById("preview-seek");
+    const time = document.getElementById("preview-time");
+    const fmt = (s) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+    if (seek) {
+      seek.max = Math.max(0.1, state.duration);
+      if (!this._seekDragging) seek.value = state.time;
+    }
+    if (time) time.textContent = `${fmt(state.time)} / ${fmt(state.duration)}`;
+  }
+
+  async seekPreview(seconds) {
+    if (this.previewPlayer) {
+      await this.previewPlayer.seekTo(seconds);
+    }
+  }
+
+  closePreviewPlayer() {
+    if (this.previewPlayer) {
+      this.previewPlayer.dispose().catch(() => {});
+      this.previewPlayer = null;
+    }
+  }
+
+  closePreview() {
+    if (!this.modalPreview) return;
+    this.closePreviewPlayer();
+    if (this.previewContainer) this.previewContainer.innerHTML = "";
+    this.modalPreview.classList.add("hidden");
+  }
+
+  _bindPreviewControls() {
+    if (this.btnClosePreview) {
+      this.btnClosePreview.addEventListener("click", () => this.closePreview());
+    }
+    if (this.previewBackdrop) {
+      this.previewBackdrop.addEventListener("click", () => this.closePreview());
+    }
+    if (this.btnPreviewPlay) {
+      this.btnPreviewPlay.addEventListener("click", () => {
+        this.previewPlayer?.toggle();
+      });
+    }
+    const seek = document.getElementById("preview-seek");
+    if (seek) {
+      seek.addEventListener("input", () => {
+        this._seekDragging = true;
+        const time = document.getElementById("preview-time");
+        if (time && this.previewPlayer) {
+          time.textContent = `${seek.value}s`;
+        }
+      });
+      seek.addEventListener("change", () => {
+        this._seekDragging = false;
+        this.seekPreview(parseFloat(seek.value) || 0);
+      });
+    }
   }
 
   async syncRecordingStatus() {
@@ -176,7 +293,7 @@ class DroneView {
         if (state === "waiting") {
           this.toastMsg("Waiting for active camera feed from go2rtc…");
         } else {
-          this.toastMsg("Recording started (Visible + Thermal MKV)");
+          this.toastMsg("Recording started (all cameras MKV)");
         }
       } else {
         this.setRecordingState("idle");
@@ -318,7 +435,7 @@ class DroneView {
       }
 
       if (!items || items.length === 0) {
-        this.recordingsList.innerHTML = '<div class="empty-state">No recordings found. Click REC to start capturing visible + thermal streams.</div>';
+        this.recordingsList.innerHTML = '<div class="empty-state">No recordings found. Click REC to start capturing camera streams.</div>';
         return;
       }
 
@@ -370,6 +487,9 @@ class DroneView {
         <div class="rec-streams">${streamPillsHtml}</div>
       </div>
       <div class="rec-item-actions">
+        <button class="btn-action btn-preview" title="Preview all camera tracks in browser" ${item.is_active ? "disabled" : ""}>
+          ▶ Preview
+        </button>
         <a href="${item.download_url}" download="${item.filename}" class="btn-action btn-download" title="Download MKV video">
           ⬇ Download
         </a>
@@ -378,6 +498,11 @@ class DroneView {
         </button>
       </div>
     `;
+
+    const previewBtn = card.querySelector(".btn-preview");
+    if (previewBtn && !item.is_active) {
+      previewBtn.addEventListener("click", () => this.openPreview(item));
+    }
 
     const deleteBtn = card.querySelector(".btn-delete");
     if (deleteBtn && !item.is_active) {
@@ -551,27 +676,17 @@ class DroneView {
 
   async init() {
     // ---- Read drone host & name from URL query params ----
+    // When name is not supplied, the host value is used as the drone name.
     const params = new URLSearchParams(window.location.search);
     const rawHost = params.get("host");
     const rawName = params.get("name");
     this.host = rawHost ? rawHost.trim().replace(/^["']|["']$/g, "") : null;
-    this.name = rawName ? rawName.trim().replace(/^["']|["']$/g, "") : null;
+    this.name = rawName ? rawName.trim().replace(/^["']|["']$/g, "") : this.host;
 
-    if (!this.host || !this.name) {
-      const missing = !this.host && !this.name ? "host and name"
-        : !this.host ? "host" : "name";
-      const msg = `Missing ?${missing}= query parameter.\n\nOpen this page as:\n` +
-        window.location.origin + "/?host=<DRONE_IP>&name=<DRONE_NAME>";
-      document.getElementById("status-visible").textContent =
-        `Missing ?${missing}= in URL`;
-      document.getElementById("overlay-visible").classList.remove("hidden");
-      document.getElementById("status-thermal").textContent =
-        "Add ?host=<IP>&name=<NAME> to the URL";
-      document.getElementById("overlay-thermal").classList.remove("hidden");
-      document.getElementById("drone-name").textContent = "No Drone";
-      document.getElementById("drone-host").textContent =
-        "Add ?host=<IP>&name=<NAME> to the URL";
-      throw new Error(msg);
+    if (!this.host) {
+      this._showFatalError("Missing ?host= in URL", "Add ?host=<IP> to the URL (name defaults to host)");
+      throw new Error("Missing ?host= query parameter.\n\nOpen this page as:\n" +
+        window.location.origin + "/?host=<DRONE_IP>&name=<DRONE_NAME>");
     }
 
     // ---- Fetch server-side config (stream names, ports) ----
@@ -582,10 +697,8 @@ class DroneView {
     document.getElementById("drone-name").textContent = this.name;
     document.getElementById("drone-host").textContent = this.host;
 
-    // ---- go2rtc URL from server config; stream names from name prefix ----
+    // ---- go2rtc URL from server config ----
     const go2rtcUrl = (this.config.go2rtc_url || "").trim().replace(/^["']|["']$/g, "").replace(/\/+$/, "");
-    const visibleStream = `${this.name}_camera`;
-    const thermalStream = `${this.name}_thermal`;
 
     // ---- Initialise gimbal client with host ----
     this.gimbal = new GimbalClient(this.host);
@@ -595,8 +708,6 @@ class DroneView {
 
     this.setPill("conn-agent", null);
     this.setPill("conn-mavlink", null);
-    this.setPill("conn-video-vis", null);
-    this.setPill("conn-video-th", null);
 
     this.mavlink.connect(this.host);
 
@@ -609,13 +720,123 @@ class DroneView {
     setInterval(() => this.pollTelemetry(), 1000);
     setInterval(() => this.syncRecordingStatus(), 3000);
 
-    // Video runs independently; swallow errors so it can't break the dashboard.
-    this.videoVis
-      .connect(go2rtcUrl, visibleStream)
-      .catch((err) => console.warn("Visible video failed:", err));
-    this.videoTh
-      .connect(go2rtcUrl, thermalStream)
-      .catch((err) => console.warn("Thermal video failed:", err));
+    // ---- Enumerate every camera whose stream name starts with '{name}_' ----
+    const cameras = await this.discoverCameras();
+    this.setupFeeds(go2rtcUrl, cameras);
+  }
+
+  async discoverCameras() {
+    try {
+      const resp = await fetch(`/api/cameras?name=${encodeURIComponent(this.name)}`);
+      if (resp.ok) {
+        const data = await resp.json();
+        if (Array.isArray(data.cameras) && data.cameras.length > 0) {
+          return data.cameras;
+        }
+      }
+    } catch (err) {
+      console.warn("Camera enumeration failed:", err);
+    }
+    // go2rtc unreachable or no streams yet — fall back to the conventional pair
+    return [`${this.name}_camera`, `${this.name}_thermal`];
+  }
+
+  cameraLabel(streamName) {
+    const prefix = `${this.name}_`;
+    const suffix = streamName.startsWith(prefix) ? streamName.slice(prefix.length) : streamName;
+    const lower = suffix.toLowerCase();
+    if (lower === "camera" || lower === "cam" || lower === "visible") return "Visible";
+    if (this.isThermal(streamName)) return "Thermal";
+    return suffix.charAt(0).toUpperCase() + suffix.slice(1);
+  }
+
+  isThermal(streamName) {
+    const prefix = `${this.name}_`;
+    const suffix = streamName.startsWith(prefix) ? streamName.slice(prefix.length) : streamName;
+    return /(^|_)thermal($|_)|(^|_)ir($|_)/i.test(suffix);
+  }
+
+  buildFeedCard(streamName) {
+    const article = document.createElement("article");
+    article.className = "feed-card";
+
+    const head = document.createElement("div");
+    head.className = "feed-head";
+    const title = document.createElement("span");
+    title.textContent = this.cameraLabel(streamName);
+    const src = document.createElement("span");
+    src.className = "feed-src mono";
+    src.textContent = streamName;
+    head.append(title, src);
+
+    const wrap = document.createElement("div");
+    wrap.className = `video-wrap${this.isThermal(streamName) ? " thermal" : ""}`;
+
+    const video = document.createElement("video");
+    video.autoplay = true;
+    video.playsInline = true;
+    video.muted = true;
+
+    const overlay = document.createElement("div");
+    overlay.className = "overlay hidden";
+    const status = document.createElement("span");
+    overlay.appendChild(status);
+
+    wrap.append(video, overlay);
+    article.append(head, wrap);
+    return { article, video, overlay, status };
+  }
+
+  setupFeeds(go2rtcUrl, cameras) {
+    const feedsEl = document.getElementById("feeds");
+    const cluster = document.querySelector(".status-cluster");
+    if (!feedsEl || !cluster) return;
+
+    feedsEl.classList.toggle("single", cameras.length === 1);
+    feedsEl.innerHTML = "";
+    cluster.querySelectorAll(".pill[data-camera]").forEach((pill) => pill.remove());
+
+    this.players = [];
+    cameras.forEach((streamName, idx) => {
+      const card = this.buildFeedCard(streamName);
+      feedsEl.appendChild(card.article);
+
+      const pill = document.createElement("div");
+      pill.id = `conn-video-${idx}`;
+      pill.className = "pill";
+      pill.dataset.camera = "1";
+      const dot = document.createElement("span");
+      dot.className = "dot";
+      pill.append(dot, document.createTextNode(this.cameraLabel(streamName)));
+      cluster.appendChild(pill);
+
+      const player = new VideoPlayer(card.video, card.overlay, card.status);
+      player.onStateChange = (ok) => this.setPill(pill.id, ok);
+      this.players.push(player);
+
+      this.setPill(pill.id, null);
+
+      // Video runs independently; swallow errors so it can't break the dashboard.
+      player
+        .connect(go2rtcUrl, streamName)
+        .catch((err) => console.warn(`Video failed for ${streamName}:`, err));
+    });
+  }
+
+  _showFatalError(title, hint) {
+    document.getElementById("drone-name").textContent = "No Drone";
+    document.getElementById("drone-host").textContent = hint;
+    const feedsEl = document.getElementById("feeds");
+    if (!feedsEl) return;
+    feedsEl.classList.add("single");
+    const article = document.createElement("article");
+    article.className = "feed-card";
+    article.innerHTML = `
+      <div class="feed-head"><span>Setup</span></div>
+      <div class="video-wrap">
+        <div class="overlay"><span class="mono sm">${title} — ${hint}</span></div>
+      </div>`;
+    feedsEl.appendChild(article);
   }
 
   async pollHealth() {

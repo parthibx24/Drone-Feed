@@ -12,9 +12,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from config import ViewerSettings, build_drone_urls, build_rtsp_urls
+from config import ViewerSettings, build_drone_urls, build_stream_sources
 from proxy import close_client, proxy_get, proxy_request, proxy_websocket
-from recorder import RecordingManager
+from recorder import RecordingManager, discover_streams
 
 logger = logging.getLogger(__name__)
 STATIC = Path(__file__).resolve().parent / "static"
@@ -50,6 +50,28 @@ def create_app(settings: ViewerSettings | None = None) -> FastAPI:
     @app.get("/api/config")
     async def get_config() -> dict:
         return cfg.public_config()
+
+    @app.get("/api/go2rtc/streams")
+    async def go2rtc_streams(src: str | None = Query(None, description="Optional stream name")):
+        clean_base = cfg.go2rtc_url.strip().strip("'\"").rstrip("/")
+        path = f"/api/streams?src={src}" if src else "/api/streams"
+        return await proxy_get(clean_base, path)
+
+    @app.get("/api/cameras")
+    async def cameras(
+        name: str | None = Query(None, description="Drone name prefix (matches '{name}_*' streams)"),
+        host: str | None = Query(None, description="Drone host; used as name when name is not supplied"),
+    ):
+        """Enumerate all go2rtc cameras whose stream name starts with '{name}_'.
+
+        Called once at dashboard page load. Falls back to the host value
+        when name is not supplied.
+        """
+        resolved = (name or host or "").strip().strip("'\"")
+        if not resolved:
+            raise HTTPException(status_code=400, detail="Provide ?name= or ?host=")
+        found = await discover_streams(cfg.go2rtc_url, f"{resolved}_")
+        return {"name": resolved, "cameras": found}
 
     @app.get("/api/health")
     async def health(host: str = Query(..., description="Drone Tailscale IP")):
@@ -91,12 +113,17 @@ def create_app(settings: ViewerSettings | None = None) -> FastAPI:
     async def start_recording(
         name: str = Query(..., description="Drone name prefix for stream ingestion"),
     ):
-        rtsp_urls = build_rtsp_urls(name, cfg)
+        clean_name = name.strip().strip("'\"")
+        # Discover cameras now so streams registered after page load are captured;
+        # fall back to the conventional pair when go2rtc can't be reached.
+        stream_names = await discover_streams(cfg.go2rtc_url, f"{clean_name}_")
+        if not stream_names:
+            stream_names = [f"{clean_name}_camera", f"{clean_name}_thermal"]
+        stream_urls = build_stream_sources(cfg, stream_names)
         try:
             result = await recorder.start_recording(
-                drone_name=name,
-                visible_rtsp_url=rtsp_urls["visible_rtsp_url"],
-                thermal_rtsp_url=rtsp_urls["thermal_rtsp_url"],
+                drone_name=clean_name,
+                stream_urls=stream_urls,
                 go2rtc_url=cfg.go2rtc_url,
             )
             return result

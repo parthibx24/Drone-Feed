@@ -1,6 +1,6 @@
 # Drone View
 
-Lightweight single-drone monitor — **visible + thermal video** and **full MAVLink telemetry** over Tailscale.
+Lightweight single-drone monitor — **multi-camera video** and **full MAVLink telemetry** over Tailscale.
 
 Runs on any device (laptop, tablet, ground-station PC) that can reach one Pi via Tailscale. No fleet registry, no gimbal controls — view only.
 
@@ -49,16 +49,19 @@ The drone IP and name are specified as **URL query parameters**:
 http://localhost:8091/?host=100.91.79.23&name=kutwali
 ```
 
-The `name` parameter is used as a **prefix for go2rtc stream names**:
-- `kutwali` → streams `kutwali_camera` + `kutwali_thermal`
-- `drone1` → streams `drone1_camera` + `drone1_thermal`
+The `name` parameter is used as a **prefix for go2rtc stream names**. At page load the
+dashboard queries go2rtc for every stream matching `{name}_*` and shows **one feed card
+per camera** (e.g. `kutwali` → `kutwali_camera`, `kutwali_thermal`, `kutwali_rear`, …).
+Server-side recording discovers the stream list again when started (so cameras added
+after page load are captured) and records all streams into a single MKV.
 
 | Parameter | Required | Description |
 |-----------|----------|-------------|
 | `host`    | **Yes**  | Pi Tailscale IP, e.g. `100.91.79.23` |
-| `name`    | **Yes**  | Stream prefix & display name (e.g. `kutwali` → `kutwali_camera`, `kutwali_thermal`) |
+| `name`    | No       | Stream prefix & display name; **defaults to `host`** when omitted |
 
-If either `?host=` or `?name=` is missing, the page shows an error prompt.
+If `?host=` is missing, the page shows an error prompt. Camera enumeration is also
+available as an API: `GET /api/cameras?name=kutwali` (or `?host=<IP>`).
 
 ## `.env` options
 
@@ -94,6 +97,6 @@ rsync -avz --exclude '.venv' Drone_View/ user@device:/path/Drone_View/
 | | **Drone_View** | **Gimbal_Control** |
 |--|----------------|---------------------|
 | Drones | One (URL `?host=&name=`) | Many (`drones.yaml`) |
-| Video | Both feeds at once | Toggle visible/thermal |
+| Video | All discovered feeds at once | Toggle visible/thermal |
 | Gimbal / mission / params | No | Yes |
 | Port | 8091 | 8090 |

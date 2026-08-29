@@ -14,7 +14,7 @@ export class VideoPlayer {
     this.video = videoEl;
     this.overlay = overlayEl;
     this.status = statusEl;
-    this.wrap = videoEl.parentElement;
+    this.wrap = videoEl ? videoEl.parentElement : null;
     this._iframe = null;
     this._watchdog = null;
     this._lastConnect = null;
@@ -118,6 +118,9 @@ export class VideoPlayer {
     this._iframe.allow = "autoplay; fullscreen";
     this._iframe.srcdoc = this._buildIframeHtml(base, streamName);
 
+    if (!this.wrap) {
+      throw new Error("Video container element is missing");
+    }
     this.wrap.appendChild(this._iframe);
 
     return new Promise((resolve) => {
@@ -300,15 +303,22 @@ export class VideoPlayer {
     }
 
     async function fetchStreamBytes() {
-      try {
-        const res = await fetch(streamsApiUrl, { cache: "no-store" });
-        if (!res.ok) throw new Error("HTTP " + res.status);
-        const json = await res.json();
-        return extractSourceBytes(json, streamName);
-      } catch (err) {
-        console.warn("[go2rtc probe] Error fetching streams API:", err);
-        return null;
+      const endpoints = [
+        "/api/go2rtc/streams?src=" + encodeURIComponent(streamName),
+        streamsApiUrl,
+      ];
+      for (const endpoint of endpoints) {
+        try {
+          const res = await fetch(endpoint, { cache: "no-store" });
+          if (res.ok) {
+            const json = await res.json();
+            return extractSourceBytes(json, streamName);
+          }
+        } catch (err) {
+          // try fallback
+        }
       }
+      return null;
     }
 
     // ---- 0 FPS Dual Probe (probe 1, wait 1s, probe 2) ----

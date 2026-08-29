@@ -17,6 +17,15 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
+# FFmpeg/ffprobe socket I/O timeout in microseconds (15s) — applies to every
+# recorder input and probe so unreachable sources fail fast instead of hanging
+# silently. Drone feeds (LTE/cellular) can take several seconds to deliver a
+# first frame after connect, so this must stay generous.
+INPUT_TIMEOUT_US = "15000000"
+# Outer cap for a single frame probe. Must exceed INPUT_TIMEOUT_US so the
+# socket timeout — not the task timeout — is what bounds a slow-but-live source.
+PROBE_TIMEOUT_SEC = 25.0
+
 
 def format_bytes(size: int) -> str:
     """Format bytes into human-readable string."""
@@ -55,32 +64,55 @@ def parse_fps(rate_str: str | None) -> float | None:
         return None
 
 
+async def discover_streams(go2rtc_url: str, prefix: str) -> list[str]:
+    """Return sorted go2rtc stream names starting with prefix (empty list on failure)."""
+    if not go2rtc_url or not prefix:
+        return []
+    clean_base = go2rtc_url.strip().strip("'\"").rstrip("/")
+    try:
+        async with httpx.AsyncClient(timeout=2.0) as client:
+            resp = await client.get(f"{clean_base}/api/streams")
+        if resp.status_code != 200:
+            return []
+        data = resp.json()
+    except Exception as exc:
+        logger.debug("go2rtc stream discovery failed: %s", exc)
+        return []
+    if not isinstance(data, dict):
+        return []
+    return sorted(k for k in data if isinstance(k, str) and k.startswith(prefix))
+
+
 class ActiveRecording:
     def __init__(
         self,
         drone_name: str,
         filename: str,
         filepath: Path,
-        visible_rtsp_url: str,
-        thermal_rtsp_url: str,
+        stream_urls: dict[str, str],
         go2rtc_url: str = "",
     ):
         self.drone_name = drone_name
         self.filename = filename
         self.filepath = filepath
-        self.visible_rtsp_url = visible_rtsp_url
-        self.thermal_rtsp_url = thermal_rtsp_url
+        self.stream_urls = dict(stream_urls)
         self.go2rtc_url = go2rtc_url
 
         self.state: str = "waiting"  # "waiting" | "recording" | "stopping" | "failed"
         self.init_time = time.time()
         self.start_time: float | None = None
         self.error_message: str | None = None
+        self.pending_streams: list[str] = []
 
         self.process: asyncio.subprocess.Process | None = None
         self.stderr_lines: list[str] = []
         self._reader_task: asyncio.Task | None = None
         self._wait_task: asyncio.Task | None = None
+
+    @property
+    def streams(self) -> list[dict[str, str]]:
+        """Current streams as [{name, url}] pairs."""
+        return [{"name": n, "url": u} for n, u in self.stream_urls.items()]
 
     def start_reader(self) -> None:
         async def _read_stderr():
@@ -127,62 +159,91 @@ class RecordingManager:
         return shutil.which("ffprobe") is not None
 
     async def probe_stream_active(self, go2rtc_url: str, stream_name: str, rtsp_url: str) -> bool:
-        """Check if go2rtc has active producers for stream, or probe via ffprobe/socket."""
-        # 1. First probe go2rtc REST API if URL provided
-        if go2rtc_url:
-            clean_base = go2rtc_url.strip().strip("'\"").rstrip("/")
-            try:
-                async with httpx.AsyncClient(timeout=2.0) as client:
-                    resp = await client.get(f"{clean_base}/api/streams?src={stream_name}")
-                    if resp.status_code == 200:
-                        data = resp.json()
-                        # If single stream returned
-                        if isinstance(data, dict):
-                            stream_data = data.get(stream_name) if stream_name in data else data
-                            producers = stream_data.get("producers", [])
-                            if producers:
-                                return True
-            except Exception as exc:
-                logger.debug("go2rtc API probe for '%s' failed: %s", stream_name, exc)
+        """Verify the stream actually delivers video frames end-to-end.
 
-        # 2. Fallback: lightweight RTSP probe via ffprobe with short timeout
-        if self.is_ffprobe_available():
-            try:
-                cmd = [
-                    "ffprobe",
-                    "-v", "error",
-                    "-rtsp_transport", "tcp",
-                    "-show_entries", "stream=codec_type",
-                    "-of", "default=noprint_wrappers=1:nokey=1",
-                    "-timeout", "1500000",  # 1.5s in microseconds
-                    rtsp_url,
-                ]
-                proc = await asyncio.create_subprocess_exec(
-                    *cmd,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE,
-                )
-                stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=3.0)
-                if proc.returncode == 0 and b"video" in stdout:
-                    return True
-            except Exception as exc:
-                logger.debug("ffprobe RTSP probe for '%s' failed: %s", stream_name, exc)
+        A go2rtc producer registration only proves the source is connected —
+        not that frames are flowing. The authoritative check reads one real
+        video packet from the exact URL FFmpeg will record from.
+        """
+        if not self.is_ffmpeg_available():
+            return False
 
-        return False
+        # Socket I/O timeout matches the recording input: a drone feed's
+        # cold start (go2rtc pulling from the source on first consumer
+        # connect) can take several seconds before the first frame arrives.
+        if rtsp_url.startswith(("rtsp://", "rtsps://")):
+            input_opts = ["-rtsp_transport", "tcp", "-timeout", INPUT_TIMEOUT_US]
+        else:
+            input_opts = ["-rw_timeout", INPUT_TIMEOUT_US]
+
+        cmd = [
+            "ffmpeg",
+            "-v", "error",
+            "-nostdin",
+            *input_opts,
+            "-i", rtsp_url,
+            "-map", "0:v:0",
+            "-c", "copy",
+            "-frames:v", "1",
+            "-f", "null",
+            "-",
+        ]
+        proc: asyncio.subprocess.Process | None = None
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            _stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=PROBE_TIMEOUT_SEC)
+            if proc.returncode == 0:
+                return True
+            logger.info(
+                "Frame probe for stream '%s' failed (rc=%s): %s",
+                stream_name,
+                proc.returncode,
+                (stderr or b"").decode("utf-8", errors="replace").strip()[-300:],
+            )
+            return False
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            logger.info("Frame probe for stream '%s' failed: %s", stream_name, exc)
+            return False
+        finally:
+            # Never leak the probe process if it timed out or was cancelled
+            if proc is not None and proc.returncode is None:
+                try:
+                    proc.kill()
+                    await proc.wait()
+                except Exception:
+                    pass
 
     async def start_recording(
         self,
         drone_name: str,
-        visible_rtsp_url: str,
-        thermal_rtsp_url: str,
+        stream_urls: dict[str, str] | None = None,
         go2rtc_url: str = "",
-        wait_timeout: float = 45.0,
+        wait_timeout: float = 90.0,
     ) -> dict[str, Any]:
-        """Initiate recording by entering a waiting state until camera feeds are active."""
+        """Initiate recording by entering a waiting state until camera feeds are active.
+
+        The default deadline (90s) accommodates slow drone cold starts: each
+        probe allows up to 15s for the first frame, and streams are probed
+        once per second until frames flow or the deadline expires.
+        """
         self.ensure_dir()
         clean_name = drone_name.strip().strip("'\"")
         if not clean_name:
             raise ValueError("Drone name cannot be empty")
+
+        clean_urls = {
+            n.strip().strip("'\""): u.strip().strip("'\"")
+            for n, u in (stream_urls or {}).items()
+            if n and n.strip() and u and u.strip()
+        }
+        if not clean_urls:
+            raise ValueError("No stream URLs to record")
 
         # Check if already active
         if clean_name in self._active:
@@ -193,7 +254,7 @@ class RecordingManager:
                     "state": "waiting",
                     "name": clean_name,
                     "drone_name": clean_name,
-                    "message": "Already waiting for active camera stream",
+                    "message": "Already waiting for camera streams to deliver frames",
                     "elapsed_waiting_sec": round(time.time() - active.init_time, 1),
                 }
             elif active.state == "recording" and active.process and active.process.returncode is None:
@@ -226,8 +287,7 @@ class RecordingManager:
             drone_name=clean_name,
             filename=filename,
             filepath=filepath,
-            visible_rtsp_url=visible_rtsp_url,
-            thermal_rtsp_url=thermal_rtsp_url,
+            stream_urls=clean_urls,
             go2rtc_url=go2rtc_url,
         )
         self._active[clean_name] = rec
@@ -243,80 +303,211 @@ class RecordingManager:
             "name": clean_name,
             "drone_name": clean_name,
             "filename": filename,
-            "message": "Waiting for active camera feed from go2rtc…",
+            "streams": rec.streams,
+            "message": "Waiting for camera streams to deliver video frames…",
             "init_time": rec.init_time,
             "created_at": datetime.fromtimestamp(rec.init_time, tz=timezone.utc).isoformat(),
         }
 
     async def _wait_and_start_capture(self, rec: ActiveRecording, wait_timeout: float = 45.0) -> None:
-        """Polls go2rtc until camera streams are ready, then spawns FFmpeg."""
+        """Wait until every camera stream delivers real video frames, then record.
+
+        A go2rtc producer registration alone is not trusted: FFmpeg is only
+        spawned after a probe read confirms frames flow end-to-end. If FFmpeg
+        starts but the output file stays empty (frames stopped again), it is
+        torn down and the wait resumes until the deadline. On timeout the
+        recording fails with a clear error instead of producing a 0-byte file.
+        """
         drone_name = rec.drone_name
-        vis_stream = f"{drone_name}_camera"
-        th_stream = f"{drone_name}_thermal"
+        deadline = time.time() + wait_timeout
+        next_status_log = 0.0
 
-        logger.info("Drone '%s': waiting for active camera feeds...", drone_name)
-        start_wait = time.time()
+        logger.info(
+            "Drone '%s': waiting for camera feeds to deliver frames (%s)...",
+            drone_name,
+            ", ".join(rec.stream_urls),
+        )
 
-        # Probing loop
-        while time.time() - start_wait < wait_timeout:
-            try:
-                # Probe visible stream
-                vis_ok = await self.probe_stream_active(rec.go2rtc_url, vis_stream, rec.visible_rtsp_url)
-                # Probe thermal stream
-                th_ok = await self.probe_stream_active(rec.go2rtc_url, th_stream, rec.thermal_rtsp_url)
+        while True:
+            # Phase 1: every mapped stream must deliver video frames.
+            # Streams are probed in parallel — a multi-camera drone's cold
+            # start would otherwise stack probe latencies sequentially.
+            streams_ready = False
+            while time.time() < deadline:
+                try:
+                    results = await asyncio.gather(
+                        *(
+                            self.probe_stream_active(rec.go2rtc_url, stream["name"], stream["url"])
+                            for stream in rec.streams
+                        ),
+                        return_exceptions=True,
+                    )
+                except asyncio.CancelledError:
+                    rec.state = "failed"
+                    raise
 
-                if vis_ok or th_ok:
-                    logger.info("Drone '%s': active camera feeds detected (vis: %s, th: %s). Starting FFmpeg...", drone_name, vis_ok, th_ok)
+                pending = [
+                    stream["name"]
+                    for stream, result in zip(rec.streams, results)
+                    if result is not True
+                ]
+                for stream, result in zip(rec.streams, results):
+                    if isinstance(result, BaseException):
+                        logger.warning("Probe error for '%s' stream '%s': %s", drone_name, stream["name"], result)
+
+                rec.pending_streams = pending
+                if not pending:
+                    rec.pending_streams = []
+                    streams_ready = True
                     break
+
+                if time.time() >= next_status_log:
+                    logger.info(
+                        "Drone '%s': still waiting for video frames from: %s",
+                        drone_name,
+                        ", ".join(pending),
+                    )
+                    next_status_log = time.time() + 5.0
+                await asyncio.sleep(1.0)
+
+            if not streams_ready:
+                rec.state = "failed"
+                rec.error_message = (
+                    f"No video frames received from streams ({', '.join(rec.stream_urls)}) "
+                    f"within {int(wait_timeout)}s"
+                )
+                logger.error("Drone '%s': %s", drone_name, rec.error_message)
+                return
+
+            logger.info("Drone '%s': all camera feeds deliver frames. Starting FFmpeg...", drone_name)
+
+            # Phase 2: launch FFmpeg
+            try:
+                await self._spawn_ffmpeg(rec)
+            except asyncio.CancelledError:
+                rec.state = "failed"
+                raise
             except Exception as exc:
-                logger.debug("Probe error for '%s': %s", drone_name, exc)
+                logger.error("Failed to start FFmpeg for '%s': %s", drone_name, exc)
+                rec.state = "failed"
+                rec.error_message = str(exc)
+                return
 
-            await asyncio.sleep(1.0)
-
-        # Build FFmpeg command for dual-stream copy
-        cmd = [
-            "ffmpeg",
-            "-y",
-            "-hide_banner",
-            "-loglevel", "warning",
-            "-rtsp_transport", "tcp",
-            "-i", rec.visible_rtsp_url,
-            "-rtsp_transport", "tcp",
-            "-i", rec.thermal_rtsp_url,
-            "-map", "0:v",
-            "-map", "1:v",
-            "-c", "copy",
-            str(rec.filepath),
-        ]
-
-        try:
-            process = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdin=asyncio.subprocess.PIPE,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-            rec.process = process
-            rec.state = "recording"
-            rec.start_time = time.time()
-            rec.start_reader()
             logger.info("FFmpeg recording started for drone '%s': %s", drone_name, rec.filename)
 
-            # Check for immediate process crash
-            await asyncio.sleep(0.3)
-            if process.returncode is not None:
-                err_msg = "\n".join(rec.stderr_lines) or f"Process exited immediately with code {process.returncode}"
+            # Phase 3: confirm frames actually land on disk
+            if await self._wait_for_output_data(rec, grace=6.0):
+                return
+
+            # No data (or early crash): tear down and wait again while time remains
+            error = rec.error_message or "FFmpeg produced no data (stream delivered no frames)"
+            logger.warning("Drone '%s': %s — restarting stream wait", drone_name, error)
+            await self._terminate_ffmpeg(rec)
+            self._discard_output_file(rec)
+            if time.time() >= deadline:
                 rec.state = "failed"
-                rec.error_message = err_msg
-                logger.error("FFmpeg exited immediately for '%s': %s", drone_name, err_msg)
-        except asyncio.CancelledError:
-            logger.info("Recording wait task for '%s' was cancelled", drone_name)
-            rec.state = "failed"
-            raise
-        except Exception as exc:
-            logger.error("Failed to start FFmpeg for '%s': %s", drone_name, exc)
-            rec.state = "failed"
-            rec.error_message = str(exc)
+                rec.error_message = error
+                return
+            rec.state = "waiting"
+            rec.start_time = None
+            rec.error_message = None
+            await asyncio.sleep(1.0)
+
+    async def _spawn_ffmpeg(self, rec: ActiveRecording) -> None:
+        """Build and launch the multi-stream copy FFmpeg process.
+
+        Each input gets an I/O timeout so an unreachable source fails fast
+        instead of producing an empty "recording" forever.
+        """
+        streams = rec.streams
+        cmd = ["ffmpeg", "-y", "-hide_banner", "-loglevel", "warning"]
+        for stream in streams:
+            url = stream["url"]
+            if url.startswith(("rtsp://", "rtsps://")):
+                cmd += ["-rtsp_transport", "tcp", "-timeout", INPUT_TIMEOUT_US, "-i", url]
+            else:
+                cmd += ["-rw_timeout", INPUT_TIMEOUT_US, "-i", url]
+        for i in range(len(streams)):
+            cmd += ["-map", f"{i}:v"]
+        cmd += ["-c", "copy", str(rec.filepath)]
+
+        process = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        rec.stderr_lines = []
+        rec.error_message = None
+        rec.process = process
+        rec.state = "recording"
+        rec.start_time = time.time()
+        rec.start_reader()
+
+    async def _wait_for_output_data(self, rec: ActiveRecording, grace: float = 6.0) -> bool:
+        """Return True once the output file has bytes on disk.
+
+        Returns False if FFmpeg dies early or no data arrives within `grace`
+        seconds — the caller should tear down and retry the stream wait.
+        """
+        deadline = time.time() + grace
+        while time.time() < deadline:
+            process = rec.process
+            if process is None:
+                rec.error_message = "FFmpeg process disappeared before writing data"
+                return False
+            if process.returncode is not None:
+                rec.error_message = (
+                    "\n".join(rec.stderr_lines[-10:])
+                    or f"FFmpeg exited early with code {process.returncode}"
+                )
+                logger.error("FFmpeg exited early for drone '%s': %s", rec.drone_name, rec.error_message)
+                return False
+            try:
+                if rec.filepath.exists() and rec.filepath.stat().st_size > 0:
+                    return True
+            except OSError:
+                pass
+            await asyncio.sleep(0.5)
+
+        rec.error_message = "FFmpeg started but no data was written (stream delivered no frames)"
+        return False
+
+    async def _terminate_ffmpeg(self, rec: ActiveRecording) -> None:
+        """Gracefully stop the FFmpeg process ('q' → terminate → kill)."""
+        process = rec.process
+        if process and process.returncode is None:
+            # Send 'q' to stdin for clean MKV header & index finalization
+            if process.stdin and not process.stdin.is_closing():
+                try:
+                    process.stdin.write(b"q\n")
+                    await process.stdin.drain()
+                    process.stdin.close()
+                except Exception as exc:
+                    logger.debug("Failed writing 'q' to ffmpeg stdin: %s", exc)
+
+            # Wait for process to exit cleanly up to 5 seconds
+            try:
+                await asyncio.wait_for(process.wait(), timeout=5.0)
+            except asyncio.TimeoutError:
+                logger.warning("FFmpeg did not exit after 'q', sending terminate")
+                try:
+                    process.terminate()
+                    await asyncio.wait_for(process.wait(), timeout=3.0)
+                except Exception:
+                    process.kill()
+                    await process.wait()
+
+        rec.stop_reader()
+        rec.process = None
+
+    def _discard_output_file(self, rec: ActiveRecording) -> None:
+        """Remove a failed attempt's empty/partial file so it never shows up in listings."""
+        try:
+            if rec.filepath.exists():
+                rec.filepath.unlink()
+        except OSError as exc:
+            logger.debug("Could not remove failed output %s: %s", rec.filename, exc)
 
     async def stop_recording(self, drone_name: str) -> dict[str, Any]:
         """Gracefully stop active recording or cancel waiting state."""
@@ -349,33 +540,10 @@ class RecordingManager:
         rec.state = "stopping"
         rec.cancel_wait_task()
         duration_sec = max(0.0, time.time() - (rec.start_time or rec.init_time))
-        process = rec.process
 
         logger.info("Stopping recording for drone '%s' (filename: %s)", clean_name, rec.filename)
 
-        if process and process.returncode is None:
-            # Send 'q' to stdin for clean MKV header & index finalization
-            if process.stdin and not process.stdin.is_closing():
-                try:
-                    process.stdin.write(b"q\n")
-                    await process.stdin.drain()
-                    process.stdin.close()
-                except Exception as exc:
-                    logger.debug("Failed writing 'q' to ffmpeg stdin: %s", exc)
-
-            # Wait for process to exit cleanly up to 5 seconds
-            try:
-                await asyncio.wait_for(process.wait(), timeout=5.0)
-            except asyncio.TimeoutError:
-                logger.warning("FFmpeg did not exit after 'q', sending terminate")
-                try:
-                    process.terminate()
-                    await asyncio.wait_for(process.wait(), timeout=3.0)
-                except Exception:
-                    process.kill()
-                    await process.wait()
-
-        rec.stop_reader()
+        await self._terminate_ffmpeg(rec)
         del self._active[clean_name]
 
         file_size = rec.filepath.stat().st_size if rec.filepath.exists() else 0
@@ -442,7 +610,8 @@ class RecordingManager:
                 "filename": rec.filename,
                 "init_time": rec.init_time,
                 "elapsed_waiting_sec": round(elapsed_wait, 1),
-                "message": "Waiting for active camera feed from go2rtc…",
+                "pending_streams": list(rec.pending_streams),
+                "message": "Waiting for camera streams to deliver video frames…",
             }
 
         if rec.state == "recording":

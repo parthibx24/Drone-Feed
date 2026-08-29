@@ -893,7 +893,8 @@ video {
 .preview-cell video,
 .preview-cell canvas {
   width: 100%;
-  aspect-ratio: 1 / 1;
+  height: auto;
+  margin-block: auto;
   background: #000;
   border: 1px solid var(--border);
   border-radius: 8px;

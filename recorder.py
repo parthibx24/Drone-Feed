@@ -17,14 +17,18 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-# FFmpeg/ffprobe socket I/O timeout in microseconds (15s) — applies to every
-# recorder input and probe so unreachable sources fail fast instead of hanging
-# silently. Drone feeds (LTE/cellular) can take several seconds to deliver a
-# first frame after connect, so this must stay generous.
-INPUT_TIMEOUT_US = "15000000"
-# Outer cap for a single frame probe. Must exceed INPUT_TIMEOUT_US so the
+# FFmpeg socket I/O timeouts in microseconds:
+# - Probe timeout (15s): Fast timeout for single-frame probes so unreachable
+#   sources fail quickly during startup checks.
+PROBE_INPUT_TIMEOUT_US = "15000000"
+# Outer cap for a single frame probe. Must exceed PROBE_INPUT_TIMEOUT_US so the
 # socket timeout — not the task timeout — is what bounds a slow-but-live source.
 PROBE_TIMEOUT_SEC = 25.0
+
+# - Record timeout (5 mins / 300s): Max wait time when a source disconnects during
+#   recording. FFmpeg waits up to 5 minutes before stopping the recording.
+RECORD_INPUT_TIMEOUT_US = "300000000"  # 300s in microseconds
+INPUT_TIMEOUT_US = RECORD_INPUT_TIMEOUT_US
 
 
 def format_bytes(size: int) -> str:
@@ -168,13 +172,11 @@ class RecordingManager:
         if not self.is_ffmpeg_available():
             return False
 
-        # Socket I/O timeout matches the recording input: a drone feed's
-        # cold start (go2rtc pulling from the source on first consumer
-        # connect) can take several seconds before the first frame arrives.
+        # Socket I/O timeout for fast stream probe checks (15s)
         if rtsp_url.startswith(("rtsp://", "rtsps://")):
-            input_opts = ["-rtsp_transport", "tcp", "-timeout", INPUT_TIMEOUT_US]
+            input_opts = ["-rtsp_transport", "tcp", "-timeout", PROBE_INPUT_TIMEOUT_US]
         else:
-            input_opts = ["-rw_timeout", INPUT_TIMEOUT_US]
+            input_opts = ["-rw_timeout", PROBE_INPUT_TIMEOUT_US]
 
         cmd = [
             "ffmpeg",
@@ -416,17 +418,17 @@ class RecordingManager:
     async def _spawn_ffmpeg(self, rec: ActiveRecording) -> None:
         """Build and launch the multi-stream copy FFmpeg process.
 
-        Each input gets an I/O timeout so an unreachable source fails fast
-        instead of producing an empty "recording" forever.
+        Each input gets an I/O timeout of 5 minutes (300s) so transient
+        source disconnects wait before stopping the recording.
         """
         streams = rec.streams
         cmd = ["ffmpeg", "-y", "-hide_banner", "-loglevel", "warning"]
         for stream in streams:
             url = stream["url"]
             if url.startswith(("rtsp://", "rtsps://")):
-                cmd += ["-rtsp_transport", "tcp", "-timeout", INPUT_TIMEOUT_US, "-i", url]
+                cmd += ["-rtsp_transport", "tcp", "-timeout", RECORD_INPUT_TIMEOUT_US, "-i", url]
             else:
-                cmd += ["-rw_timeout", INPUT_TIMEOUT_US, "-i", url]
+                cmd += ["-rw_timeout", RECORD_INPUT_TIMEOUT_US, "-i", url]
         for i in range(len(streams)):
             cmd += ["-map", f"{i}:v"]
         cmd += ["-c", "copy", str(rec.filepath)]

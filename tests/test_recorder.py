@@ -12,7 +12,15 @@ from fastapi.testclient import TestClient
 
 from app import create_app
 from config import ViewerSettings, build_rtsp_urls, build_stream_sources
-from recorder import INPUT_TIMEOUT_US, RecordingManager, format_bytes, format_duration, parse_fps
+from recorder import (
+    INPUT_TIMEOUT_US,
+    PROBE_INPUT_TIMEOUT_US,
+    RECORD_INPUT_TIMEOUT_US,
+    RecordingManager,
+    format_bytes,
+    format_duration,
+    parse_fps,
+)
 
 
 class TestConfigAndHelpers(unittest.TestCase):
@@ -85,6 +93,13 @@ class TestConfigAndHelpers(unittest.TestCase):
         self.assertEqual(parse_fps("29.97"), 29.97)
         self.assertIsNone(parse_fps("0/0"))
         self.assertIsNone(parse_fps(None))
+
+    def test_timeout_constants(self):
+        # Probe timeout must be fast (15s = 15,000,000 us)
+        self.assertEqual(PROBE_INPUT_TIMEOUT_US, "15000000")
+        # Recording timeout must be 5 minutes (300s = 300,000,000 us)
+        self.assertEqual(RECORD_INPUT_TIMEOUT_US, "300000000")
+        self.assertEqual(INPUT_TIMEOUT_US, RECORD_INPUT_TIMEOUT_US)
 
 
 
@@ -265,6 +280,7 @@ class TestRecordingManager(unittest.IsolatedAsyncioTestCase):
         self.assertIn("1", cmd)
         self.assertIn("-f", cmd)
         self.assertIn("-timeout", cmd)  # RTSP inputs get a socket I/O timeout
+        self.assertEqual(cmd[cmd.index("-timeout") + 1], PROBE_INPUT_TIMEOUT_US)
 
         # Non-zero exit (connected but no frames / unreachable) must NOT be active
         mock_subprocess.reset_mock()
@@ -279,7 +295,9 @@ class TestRecordingManager(unittest.IsolatedAsyncioTestCase):
             "", "cam", "https://cams.example.com/api/stream.mp4?src=cam"
         )
         self.assertTrue(mp4_active)
-        self.assertIn("-rw_timeout", mock_subprocess.call_args.args)
+        mp4_cmd = mock_subprocess.call_args.args
+        self.assertIn("-rw_timeout", mp4_cmd)
+        self.assertEqual(mp4_cmd[mp4_cmd.index("-rw_timeout") + 1], PROBE_INPUT_TIMEOUT_US)
 
     @patch.object(RecordingManager, "probe_stream_active", new=AsyncMock(return_value=False))
     @patch.object(RecordingManager, "is_ffmpeg_available", return_value=True)
@@ -396,6 +414,7 @@ class TestRecordingManager(unittest.IsolatedAsyncioTestCase):
             self.assertIn(mapping, cmd)
         self.assertEqual(cmd.count("-timeout"), 2)
         self.assertEqual(cmd.count("-rw_timeout"), 1)
+        self.assertEqual(cmd.count(RECORD_INPUT_TIMEOUT_US), 3)
         self.assertEqual(cmd.count(INPUT_TIMEOUT_US), 3)
 
         await self.manager.stop_recording("kutwali")

@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import folderIcon from "../../assets/icons/folder.svg";
+import fullscreenIcon from "../../assets/icons/fullscreen.svg";
 import type { GimbalControls } from "../../hooks/useGimbal";
 import type { RecordingControls } from "../../hooks/useRecording";
 import type { CameraFeed, Telemetry } from "../../types/drone";
@@ -34,7 +35,12 @@ export function VideoStage({
   onOpenLibrary,
 }: VideoStageProps) {
   const [selected, setSelected] = useState<string | null>(null);
+  const mainFeedRef = useRef<HTMLDivElement>(null);
   const mainStream = feeds.some((feed) => feed.stream === selected) ? selected! : feeds[0]?.stream;
+
+  const enterFullscreen = () => {
+    mainFeedRef.current?.requestFullscreen().catch((error) => console.warn("Fullscreen failed:", error));
+  };
 
   return (
     <Panel className={styles.stage}>
@@ -44,6 +50,7 @@ export function VideoStage({
           feed={feed}
           go2rtcUrl={go2rtcUrl}
           isMain={feed.stream === mainStream}
+          rootRef={feed.stream === mainStream ? mainFeedRef : undefined}
           onPlayingChange={onFeedPlayingChange}
           onSelect={setSelected}
         />
@@ -58,7 +65,7 @@ export function VideoStage({
         />
         <FlightStatusChips telemetry={telemetry} />
         <div className={styles.recordControls}>
-          <ControlGroup className={styles.folderGroup}>
+          <ControlGroup className={styles.iconTray}>
             <IconButton icon={folderIcon} label="View recordings library" onClick={onOpenLibrary} />
           </ControlGroup>
           <RecordButton recording={recording} />
@@ -66,6 +73,9 @@ export function VideoStage({
       </div>
 
       <div className={styles.bottomControls}>
+        <ControlGroup className={styles.iconTray}>
+          <IconButton icon={fullscreenIcon} label="Full screen" onClick={enterFullscreen} />
+        </ControlGroup>
         <SpeedControl speed={gimbal.speed} setSpeed={gimbal.setSpeed} />
         <ZoomControl zoom={gimbal.zoom} zoomStep={gimbal.zoomStep} zoomReset={gimbal.zoomReset} />
       </div>

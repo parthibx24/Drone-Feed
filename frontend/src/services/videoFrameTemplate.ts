@@ -64,30 +64,10 @@ export function buildVideoFrameHtml(go2rtcUrl: string, streamName: string): stri
       font-size: 12px;
       opacity: 0.9;
     }
-    .info .fps-metric {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      padding: 2px 7px;
-      border-radius: 4px;
-      background: rgba(0, 0, 0, 0.6);
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-      font-size: 12px;
-      font-weight: 600;
-      color: #00d4aa;
-      white-space: nowrap;
-      margin: 0 8px;
-      letter-spacing: 0.02em;
-    }
-    .info .fps-metric.zero {
-      color: #f87171;
-    }
+    /* Not shown, but the FPS element must exist: the playing/stalled reports depend on it. */
+    .info .fps-metric,
     .info .mode {
-      font-weight: bold;
-      text-transform: uppercase;
-      font-size: 12px;
-      white-space: nowrap;
-      margin-left: auto;
+      display: none;
     }
   </style>
 </head>
@@ -265,6 +245,7 @@ export function buildVideoFrameHtml(go2rtcUrl: string, streamName: string): stri
     function checkDom() {
       ensureFpsMetricElement();
       const video = videoStream.querySelector("video");
+      if (video) video.controls = false;
       if (video && video !== targetVideo) {
         bindVideoVrfc(video);
       }

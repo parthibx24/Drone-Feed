@@ -24,8 +24,14 @@ cp .env.example .env
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
 
+# Build the UI into static/ (Node 22+)
+(cd frontend && npm ci && npm run build)
+
 .venv/bin/python __main__.py
 ```
+
+To work on the UI with hot reload, keep the Python app running and start
+`npm run dev` in `frontend/`, then open `http://localhost:5173/static/?host=<IP>&name=<NAME>`.
 
 ### Docker / Docker Compose
 

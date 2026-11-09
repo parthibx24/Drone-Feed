@@ -1,3 +1,11 @@
+# Build the React UI into /app/static
+FROM node:22-slim AS frontend
+WORKDIR /app/frontend
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
+COPY frontend/ ./
+RUN npm run build
+
 FROM python:3.11-slim
 
 # Prevent Python from writing .pyc files and enable unbuffered logging
@@ -23,6 +31,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application source code
 COPY . .
+COPY --from=frontend /app/static ./static
 
 # Expose default viewer port
 EXPOSE 8091

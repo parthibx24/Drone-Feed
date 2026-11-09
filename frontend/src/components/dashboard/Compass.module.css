@@ -1,0 +1,156 @@
+/* All positions are taken from the Figma compass frame (378x378). */
+.panel {
+  flex-shrink: 0;
+  width: 378px;
+  height: 378px;
+  font-family: var(--font-compass);
+}
+
+.fill {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.outerRing {
+  position: absolute;
+  top: 67.92px;
+  left: 71.45px;
+  width: 240.83px;
+  height: 240.83px;
+}
+
+/* The ring, hub and dot artwork extends past its layer to include the shadows. */
+.outerRing .fill {
+  position: absolute;
+  top: -19.16%;
+  left: -22.99%;
+  width: 145.98%;
+  height: 145.98%;
+}
+
+.innerRing {
+  position: absolute;
+  top: 112.21px;
+  left: 114.21px;
+  display: block;
+  width: 155.33px;
+  height: 155.33px;
+}
+
+.hub {
+  position: absolute;
+  top: 138.46px;
+  left: 140.35px;
+  width: 103.04px;
+  height: 103.04px;
+}
+
+.hub .fill {
+  position: absolute;
+  top: -13.43%;
+  left: -17.91%;
+  width: 135.82%;
+  height: 135.82%;
+}
+
+.ticks {
+  position: absolute;
+  top: 72.53px;
+  left: 75.76px;
+  display: block;
+  width: 232.22px;
+  height: 231.91px;
+}
+
+.degree {
+  position: absolute;
+  top: 188.33px;
+  left: 191.87px;
+  transform: translate(-50%, -50%) rotate(var(--angle)) translateY(-90px);
+  white-space: nowrap;
+}
+
+.major {
+  font-size: 11.11px;
+  font-weight: 500;
+}
+
+.minor {
+  font-size: 9.13px;
+  font-weight: 400;
+  opacity: 0.5;
+}
+
+.letter {
+  position: absolute;
+  transform: translateX(-50%);
+  color: var(--color-compass-letter);
+  font-size: 17.22px;
+  font-weight: 500;
+}
+
+.n {
+  top: 47px;
+  left: 189.91px;
+  color: var(--color-compass-north);
+}
+
+.e {
+  top: 175.99px;
+  left: 323.32px;
+}
+
+.s {
+  top: 310.9px;
+  left: 190.03px;
+}
+
+.w {
+  top: 178.14px;
+  left: 57.5px;
+}
+
+/* Zero-size pivot on the compass centre; rotating it carries the dot to the heading. */
+.orbit {
+  position: absolute;
+  top: 188.33px;
+  left: 191.87px;
+  width: 0;
+  height: 0;
+  transform: rotate(var(--heading));
+}
+
+.dot {
+  position: absolute;
+  top: -75.2px;
+  left: -10.61px;
+  width: 21.22px;
+  height: 21.22px;
+}
+
+.dot .fill {
+  position: absolute;
+  top: -37.68%;
+  left: -43.48%;
+  width: 186.96%;
+  height: 186.96%;
+}
+
+.value {
+  position: absolute;
+  top: 171.26px;
+  left: 191.87px;
+  transform: translateX(-50%);
+  font-size: 31.74px;
+  font-weight: 500;
+}
+
+.cardinal {
+  position: absolute;
+  top: 211.05px;
+  left: 191.87px;
+  transform: translateX(-50%);
+  font-size: 14.15px;
+  font-weight: 500;
+}

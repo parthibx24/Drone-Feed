@@ -1,0 +1,37 @@
+.stage {
+  width: 1294px;
+  height: 670px;
+}
+
+.topControls,
+.bottomControls {
+  position: absolute;
+  right: 34px;
+  z-index: 3;
+  display: flex;
+  pointer-events: none;
+}
+
+.topControls {
+  top: 34px;
+  left: 34px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.bottomControls {
+  bottom: 34px;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.recordControls {
+  display: flex;
+  gap: 8px;
+}
+
+.folderGroup {
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+}

@@ -1,0 +1,102 @@
+.bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 47px;
+}
+
+.logoFrame {
+  position: relative;
+  width: 161px;
+  height: 47px;
+  overflow: hidden;
+}
+
+.logo {
+  position: absolute;
+  top: -13.64%;
+  left: -11%;
+  width: 122%;
+  height: 138.64%;
+  max-width: none;
+}
+
+.links {
+  display: flex;
+  gap: 8px;
+}
+
+.link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 41px;
+  padding: 0 16px;
+  border-radius: var(--radius-panel);
+  background: var(--color-pill);
+  font-size: 15px;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.ok {
+  background: var(--color-success);
+}
+
+.bad {
+  background: var(--color-danger);
+}
+
+.checking {
+  background: var(--color-warning);
+  animation: blink 1.2s infinite;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0.25;
+  }
+}
+
+.account {
+  display: flex;
+  align-items: center;
+  min-width: 195px;
+  height: 41px;
+  margin-right: 1px;
+  padding: 0 14px 0 5px;
+  border-radius: var(--radius-panel);
+  background: var(--color-pill);
+}
+
+.avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 31px;
+  height: 31px;
+  border-radius: 50%;
+  background: var(--color-avatar);
+}
+
+.badge {
+  display: block;
+  width: 17px;
+  height: 17px;
+}
+
+.droneName {
+  margin-left: 6px;
+  font-size: 15px;
+}
+
+.arrow {
+  display: block;
+  width: 23px;
+  height: 23px;
+  margin-left: auto;
+}

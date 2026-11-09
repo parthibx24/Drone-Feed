@@ -1,0 +1,69 @@
+.pad {
+  position: relative;
+  flex-shrink: 0;
+  width: 438px;
+  height: 378px;
+}
+
+.artwork {
+  position: absolute;
+  inset: 0;
+  background: none;
+}
+
+.image {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Hit areas sit on the arrows drawn in the artwork, 100px from its centre. */
+.direction {
+  position: absolute;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  transition: background 0.12s;
+}
+
+.direction:hover {
+  background: var(--color-track);
+}
+
+.direction.active {
+  background: var(--color-border-control);
+}
+
+.up {
+  top: 57px;
+  left: 187px;
+}
+
+.down {
+  top: 257px;
+  left: 187px;
+}
+
+.left {
+  top: 157px;
+  left: 87px;
+}
+
+.right {
+  top: 157px;
+  left: 287px;
+}
+
+.center {
+  position: absolute;
+  top: 160px;
+  left: 190px;
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  touch-action: manipulation;
+}
+
+.center:hover {
+  background: rgba(0, 0, 0, 0.08);
+}

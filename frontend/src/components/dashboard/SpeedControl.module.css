@@ -1,0 +1,65 @@
+.group {
+  width: 244px;
+  height: 64px;
+  gap: 10px;
+  padding: 0 20px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.label {
+  width: 30px;
+}
+
+.value {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.slider {
+  --fill: calc(6px + (100% - 12px) * var(--progress));
+  width: 138px;
+  height: 12px;
+  background: none;
+  cursor: pointer;
+  appearance: none;
+}
+
+.slider::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 81px;
+  background: linear-gradient(
+    to right,
+    var(--color-text) var(--fill),
+    var(--color-track) var(--fill)
+  );
+}
+
+.slider::-moz-range-track {
+  height: 6px;
+  border-radius: 81px;
+  background: linear-gradient(
+    to right,
+    var(--color-text) var(--fill),
+    var(--color-track) var(--fill)
+  );
+}
+
+.slider::-webkit-slider-thumb {
+  width: 12px;
+  height: 12px;
+  margin-top: -3px;
+  border-radius: 39px;
+  background: var(--color-text);
+  box-shadow: 0 3px 4px rgba(0, 0, 0, 0.55);
+  appearance: none;
+}
+
+.slider::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border: none;
+  border-radius: 39px;
+  background: var(--color-text);
+  box-shadow: 0 3px 4px rgba(0, 0, 0, 0.55);
+}

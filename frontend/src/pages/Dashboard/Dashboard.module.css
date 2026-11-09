@@ -1,0 +1,31 @@
+.page {
+  flex-shrink: 0;
+  width: 1880px;
+  height: 1200px;
+  margin: auto;
+  padding: 29px 31px 30px;
+}
+
+.content {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 26px;
+}
+
+.sidebar {
+  flex-shrink: 0;
+  width: 504px;
+  height: 1068px;
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 1294px;
+}
+
+.bottomRow {
+  display: flex;
+  gap: 20px;
+}

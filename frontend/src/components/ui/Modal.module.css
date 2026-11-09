@@ -1,0 +1,88 @@
+.root {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(9, 12, 8, 0.82);
+  backdrop-filter: blur(5px);
+}
+
+.card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 1100px;
+  max-height: 88vh;
+  overflow: hidden;
+  border: 1px solid var(--color-border-card);
+  border-radius: var(--radius-panel);
+  background: var(--color-panel);
+}
+
+.wide {
+  width: 1500px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 24px 30px;
+  border-bottom: 1px solid var(--color-divider);
+}
+
+.heading,
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.title {
+  font-size: 24px;
+  font-weight: 500;
+}
+
+.button {
+  height: 40px;
+  padding: 0 16px;
+  border: 1px solid var(--color-border-button);
+  border-radius: var(--radius-button);
+  background: var(--color-tile);
+  font-size: 15px;
+  font-weight: 600;
+  touch-action: manipulation;
+}
+
+.close {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-button);
+  color: var(--color-text-subtle);
+  font-size: 18px;
+}
+
+.close:hover {
+  background: var(--color-pill);
+  color: var(--color-text);
+}
+
+.body {
+  overflow-y: auto;
+  padding: 24px 30px 30px;
+}
+
+.message {
+  padding: 48px 16px;
+  color: var(--color-text-muted);
+  font-size: 16px;
+  text-align: center;
+}

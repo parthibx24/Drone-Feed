@@ -1,0 +1,37 @@
+/* Design tokens from the Figma "Drone Dashboard" frame. */
+:root {
+  --color-page: #090c08;
+  --color-panel: #1c1c1e;
+  --color-card: #232325;
+  --color-tile: #282828;
+  --color-divider: #353537;
+  --color-avatar: #b1b1b1;
+  --color-record: #ff0000;
+
+  --color-text: #ffffff;
+  --color-text-muted: #7b7b7c;
+  --color-text-subtle: #a9a9a9;
+  --color-compass-letter: #939ba4;
+  --color-compass-north: #f60000;
+
+  --color-border-card: rgba(255, 255, 255, 0.08);
+  --color-border-button: rgba(255, 255, 255, 0.12);
+  --color-border-control: rgba(255, 255, 255, 0.24);
+  --color-border-control-strong: rgba(255, 255, 255, 0.34);
+  --color-pill: rgba(255, 255, 255, 0.06);
+  --color-track: rgba(255, 255, 255, 0.08);
+
+  /* Status colours carried over from the previous dashboard. */
+  --color-accent: #00d4aa;
+  --color-success: #4ade80;
+  --color-warning: #fbbf24;
+  --color-danger: #f87171;
+
+  --font-ui: "Urbanist", system-ui, sans-serif;
+  --font-compass: "Inter", system-ui, sans-serif;
+
+  --radius-panel: 21px;
+  --radius-control: 14px;
+  --radius-card: 9px;
+  --radius-button: 7px;
+}

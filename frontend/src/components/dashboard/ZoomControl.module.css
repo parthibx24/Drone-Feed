@@ -1,0 +1,13 @@
+.group {
+  flex-direction: column;
+  justify-content: space-between;
+  width: 64px;
+  height: 163px;
+  padding: 7px 0;
+}
+
+.level {
+  font-size: 16px;
+  font-weight: 600;
+  touch-action: manipulation;
+}

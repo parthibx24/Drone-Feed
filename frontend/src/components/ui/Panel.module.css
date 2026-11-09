@@ -1,0 +1,13 @@
+.panel {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-panel);
+  background: var(--color-panel);
+}
+
+.title {
+  height: 17px;
+  font-size: 24px;
+  font-weight: 500;
+  text-box: trim-both cap alphabetic;
+}

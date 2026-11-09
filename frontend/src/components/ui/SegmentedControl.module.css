@@ -1,0 +1,20 @@
+.group {
+  gap: 6px;
+  min-width: 309px;
+  height: 64px;
+  padding: 0 7px;
+}
+
+.option {
+  width: 140px;
+  height: 48px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-button);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.selected {
+  border-color: var(--color-border-button);
+  background: var(--color-panel);
+}

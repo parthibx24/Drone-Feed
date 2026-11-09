@@ -1,0 +1,31 @@
+.chips {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.chip {
+  display: flex;
+  align-items: center;
+  height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--color-border-control);
+  border-radius: var(--radius-button);
+  background: var(--color-page);
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.armed {
+  color: var(--color-danger);
+}
+
+.disarmed {
+  color: var(--color-success);
+}
+
+.muted {
+  color: var(--color-text-subtle);
+}

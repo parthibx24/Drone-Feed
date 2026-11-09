@@ -1,0 +1,36 @@
+.button {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border: 1px solid;
+  transition: filter 0.12s;
+}
+
+.button:hover:not(:disabled) {
+  filter: brightness(1.35);
+}
+
+.active {
+  filter: brightness(1.7);
+}
+
+.control {
+  border-color: var(--color-border-button);
+  border-radius: var(--radius-button);
+  background: var(--color-panel);
+}
+
+.tile {
+  border-color: var(--color-border-card);
+  border-radius: var(--radius-card);
+  background: var(--color-tile);
+}
+
+.icon {
+  display: block;
+  width: 24px;
+  height: 24px;
+}

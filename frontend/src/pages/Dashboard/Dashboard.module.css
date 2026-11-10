@@ -1,21 +1,47 @@
-.page {
-  flex-shrink: 0;
-  width: 1880px;
-  height: 1200px;
-  margin: auto;
-  padding: 29px 31px 30px;
-}
-
-.content {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 26px;
-}
-
 .sidebar {
+  display: flex;
+  flex-direction: column;
   flex-shrink: 0;
   width: 504px;
   height: 1068px;
+}
+
+.lower {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.tabs {
+  display: flex;
+  gap: 6px;
+  margin: 22px 24px 0;
+  padding: 3px;
+  border-radius: var(--radius-panel);
+  background: var(--color-pill);
+}
+
+.tab {
+  flex: 1;
+  height: 38px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-panel);
+  color: var(--color-text-subtle);
+  font-size: 16px;
+  font-weight: 600;
+  touch-action: manipulation;
+}
+
+.tabActive {
+  border-color: var(--color-border-button);
+  background: var(--color-panel);
+  color: var(--color-text);
+}
+
+.flight {
+  padding: 20px 24px 24px;
+  overflow-y: auto;
 }
 
 .column {

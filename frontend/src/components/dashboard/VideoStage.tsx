@@ -21,6 +21,8 @@ interface VideoStageProps {
   telemetry: Telemetry;
   gimbal: GimbalControls;
   recording: RecordingControls;
+  /** False for viewers: gimbal, zoom and recording controls are disabled. */
+  canOperate?: boolean;
   onFeedPlayingChange: (stream: string, playing: boolean) => void;
   onOpenLibrary: () => void;
 }
@@ -31,6 +33,7 @@ export function VideoStage({
   telemetry,
   gimbal,
   recording,
+  canOperate = true,
   onFeedPlayingChange,
   onOpenLibrary,
 }: VideoStageProps) {
@@ -68,7 +71,7 @@ export function VideoStage({
           <ControlGroup className={styles.iconTray}>
             <IconButton icon={folderIcon} label="View recordings library" onClick={onOpenLibrary} />
           </ControlGroup>
-          <RecordButton recording={recording} />
+          <RecordButton recording={recording} disabled={!canOperate} />
         </div>
       </div>
 
@@ -77,7 +80,7 @@ export function VideoStage({
           <IconButton icon={fullscreenIcon} label="Full screen" onClick={enterFullscreen} />
         </ControlGroup>
         <SpeedControl speed={gimbal.speed} setSpeed={gimbal.setSpeed} />
-        <ZoomControl zoom={gimbal.zoom} zoomStep={gimbal.zoomStep} zoomReset={gimbal.zoomReset} />
+        <ZoomControl zoom={gimbal.zoom} zoomStep={gimbal.zoomStep} zoomReset={gimbal.zoomReset} disabled={!canOperate} />
       </div>
     </Panel>
   );

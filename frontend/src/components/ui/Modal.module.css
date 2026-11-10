@@ -30,6 +30,10 @@
   width: 1500px;
 }
 
+.narrow {
+  width: 640px;
+}
+
 .header {
   display: flex;
   align-items: center;

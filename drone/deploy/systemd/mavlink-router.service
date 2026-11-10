@@ -1,0 +1,20 @@
+[Unit]
+Description=MAVLink router (flight controller <-> gateway, bridge, GCS)
+Wants=network-online.target
+After=network-online.target tailscaled.service dev-ttyAMA0.device
+Requires=dev-ttyAMA0.device
+Conflicts=mavproxy.service
+
+[Service]
+Type=simple
+User=dronepi
+Group=dialout
+ExecStartPre=/bin/mkdir -p /home/dronepi/flightlogs
+ExecStart=/opt/drone-stack/bin/mavlink-routerd -c /etc/mavlink-router/main.conf
+Restart=always
+RestartSec=3
+# Hard cap so the router can never starve a 512 MB Pi Zero.
+MemoryMax=48M
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,53 @@
+.page {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  width: 520px;
+  padding: 44px 48px 48px;
+  border: 1px solid var(--color-border-card);
+}
+
+.logoFrame {
+  position: relative;
+  width: 161px;
+  height: 47px;
+  overflow: hidden;
+}
+
+.logo {
+  position: absolute;
+  top: -13.64%;
+  left: -11%;
+  width: 122%;
+  height: 138.64%;
+  max-width: none;
+}
+
+.title {
+  margin-top: 32px;
+  font-size: 28px;
+  font-weight: 600;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  margin-top: 28px;
+}
+
+.error {
+  color: var(--color-danger);
+  font-size: 15px;
+}
+
+.submit {
+  margin-top: 8px;
+}

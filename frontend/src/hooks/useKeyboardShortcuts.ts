@@ -11,6 +11,8 @@ const ARROW_DIRECTIONS: Record<string, [yaw: number, pitch: number]> = {
 interface ShortcutActions {
   gimbal: GimbalControls;
   toggleRecording: () => void;
+  /** False for viewers: shortcuts do nothing. */
+  enabled?: boolean;
 }
 
 /** Arrows jog the gimbal, Space stops, C centres, 1/Z resets zoom, R toggles recording. */
@@ -27,7 +29,8 @@ export function useKeyboardShortcuts(actions: ShortcutActions): void {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.repeat) return;
       if (document.activeElement?.matches("input, textarea, select")) return;
-      const { gimbal, toggleRecording } = latest.current;
+      const { gimbal, toggleRecording, enabled = true } = latest.current;
+      if (!enabled) return;
 
       if (event.code === "Space") {
         event.preventDefault();
@@ -54,11 +57,26 @@ export function useKeyboardShortcuts(actions: ShortcutActions): void {
       }
     };
 
+    // Switching window or tab swallows the keyup: stop instead of moving on.
+    const onFocusLost = () => {
+      if (activeKey === null) return;
+      activeKey = null;
+      latest.current.gimbal.stop();
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") onFocusLost();
+    };
+
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("keyup", onKeyUp);
+    window.addEventListener("blur", onFocusLost);
+    document.addEventListener("visibilitychange", onVisibility);
     return () => {
+      onFocusLost();
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
+      window.removeEventListener("blur", onFocusLost);
+      document.removeEventListener("visibilitychange", onVisibility);
     };
   }, []);
 }

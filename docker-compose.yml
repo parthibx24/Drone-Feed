@@ -1,14 +1,17 @@
+# Local development / single-host run. The production server uses the central
+# StarWatch docker-compose (see docs/05-deployment.md).
 services:
-  drone-feed:
+  starwatch:
     build: .
-    container_name: drone-feed
+    container_name: starwatch
     restart: unless-stopped
     ports:
-      - "${VIEWER_PORT:-8091}:8091"
+      - "8091:8091"
     env_file:
       - .env
-    environment:
-      - AGENT_PORT=${AGENT_PORT:-8080}
-      - GO2RTC_URL=${GO2RTC_URL:-https://cams.drone.starwatch.bb7fab11.sslip.io}
-      - VIEWER_HOST=0.0.0.0
-      - VIEWER_PORT=8091
+    volumes:
+      - ./gateway.yaml:/config/gateway.yaml:ro
+      - recordings:/recordings
+
+volumes:
+  recordings:

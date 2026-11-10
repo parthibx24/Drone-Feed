@@ -15,7 +15,16 @@ const MARKER_HTML = `
     <img class="${styles.drone}" src="${droneIcon}" alt="" />
   </div>`;
 
-export function DroneMap({ telemetry }: { telemetry: Telemetry }) {
+interface DroneMapProps {
+  telemetry: Telemetry;
+  /** When set, a "Go to" toggle appears; clicking the map then calls onGoto. */
+  onGoto?: (lat: number, lon: number) => void;
+  gotoActive?: boolean;
+  onToggleGoto?: () => void;
+  target?: [number, number] | null;
+}
+
+export function DroneMap({ telemetry, onGoto, gotoActive = false, onToggleGoto, target = null }: DroneMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const trackerRef = useRef<MapTracker | null>(null);
   const { lat, lon, heading_deg: heading } = telemetry;
@@ -33,9 +42,27 @@ export function DroneMap({ telemetry }: { telemetry: Telemetry }) {
     trackerRef.current?.update(lat, lon, heading ?? 0);
   }, [lat, lon, heading]);
 
+  useEffect(() => {
+    trackerRef.current?.onClick(gotoActive && onGoto ? onGoto : null);
+  }, [gotoActive, onGoto]);
+
+  useEffect(() => {
+    trackerRef.current?.setTarget(target);
+  }, [target]);
+
   return (
     <Panel className={styles.panel}>
       <div ref={containerRef} className={styles.map} />
+      {onToggleGoto && (
+        <button
+          type="button"
+          className={`${styles.gotoButton} ${gotoActive ? styles.gotoActive : ""}`}
+          onClick={onToggleGoto}
+          title="Click the map to fly the drone there (GUIDED)"
+        >
+          {gotoActive ? "Click map… (cancel)" : "Go to"}
+        </button>
+      )}
     </Panel>
   );
 }

@@ -1,108 +1,41 @@
-# Drone View
+# StarWatch Drone-Feed
 
-Lightweight single-drone monitor — **multi-camera video** and **full MAVLink telemetry** over Tailscale.
+Monitoring and control for StarWatch drones: live video, telemetry, flight control, missions, parameters and recordings, in one web app behind a login.
 
-Runs on any device (laptop, tablet, ground-station PC) that can reach one Pi via Tailscale. No fleet registry, no gimbal controls — view only.
+| Part | Runs on | Job |
+|---|---|---|
+| **drone-gateway** + web UI | central server (one container) | Logins and roles, the React UI, one MAVLink link per drone, commands with acknowledgements, missions, parameters, server-side recording |
+| **mavlink-router** | each drone's Pi | Owns the Pixhawk serial port and routes MAVLink (replaces MAVProxy) |
+| **gimbal-bridge** | each drone's Pi | Presents the Skydroid C12 as a standard MAVLink camera and gimbal (replaces the old Python drone-agent) |
+| go2rtc | drone and server | Video (unchanged) |
 
-```
-Your device (this app :8091)
-        │ Tailscale
-        ▼
-Raspberry Pi on drone
-  go2rtc (centralized) ← video (browser connects direct)
-  drone-agent :8080    ← MAVLink telemetry (proxied via this app)
-```
+## Documentation
 
-## Setup
+Explanation is in [`docs/`](docs/); everything else is code or configuration.
 
-### Local Python Environment
+| Doc | About |
+|---|---|
+| [01-architecture](docs/01-architecture.md) | How it fits together, repository layout, ports |
+| [02-gimbal-bridge](docs/02-gimbal-bridge.md) | MAVLink camera/gimbal ↔ Skydroid translation |
+| [03-drone-gateway](docs/03-drone-gateway.md) | Server internals and the configuration reference |
+| [04-api](docs/04-api.md) | REST and WebSocket API, login |
+| [05-deployment](docs/05-deployment.md) | Pi cutover, server switch, ArduPilot parameters, rollback, security |
+| [06-testing](docs/06-testing.md) | Tests and the local sandbox (no drone needed) |
+| [07-status](docs/07-status.md) | What is verified, what is not, next steps |
+| [08-frontend](docs/08-frontend.md) | Pages, roles in the UI, how the UI talks to the server |
 
-```bash
-cp .env.example .env
-# Edit .env — configure go2rtc URL and agent port
+## Quick start (no drone needed)
 
-python3 -m venv .venv
-.venv/bin/pip install -r requirements.txt
+| Step | Command |
+|---|---|
+| Build the UI | `cd frontend && npm ci && npm run build` |
+| Fake drone | `go run ./tools/sim-vehicle -bridge 127.0.0.1:14556` |
+| Fake camera bridge | `go run ./drone/cmd/gimbal-bridge -local-port 0 -gimbal-host 127.0.0.1` |
+| Server | `go run ./server/cmd/drone-gateway -config gateway.yaml` (see [06-testing](docs/06-testing.md#local-sandbox)) |
+| Open | `http://127.0.0.1:8091` |
+| Tests | `go test ./...` and `cd frontend && npm run build` |
+| Password hash for a user | `go run ./server/cmd/drone-gateway hash-password` |
 
-# Build the UI into static/ (Node 22+)
-(cd frontend && npm ci && npm run build)
 
-.venv/bin/python __main__.py
-```
 
-To work on the UI with hot reload, keep the Python app running and start
-`npm run dev` in `frontend/`, then open `http://localhost:5173/static/?host=<IP>&name=<NAME>`.
 
-### Docker / Docker Compose
-
-```bash
-cp .env.example .env
-# Edit .env — configure go2rtc URL and agent port
-
-# Using Docker Compose (recommended)
-docker compose up -d
-
-# Or using Docker directly
-docker build -t drone-feed .
-docker run -d --name drone-feed --env-file .env -p 8091:8091 drone-feed
-```
-
-### Open in browser
-
-The drone IP and name are specified as **URL query parameters**:
-
-```
-http://localhost:8091/?host=100.91.79.23&name=kutwali
-```
-
-The `name` parameter is used as a **prefix for go2rtc stream names**. At page load the
-dashboard queries go2rtc for every stream matching `{name}_*` and shows **one feed card
-per camera** (e.g. `kutwali` → `kutwali_camera`, `kutwali_thermal`, `kutwali_rear`, …).
-Server-side recording discovers the stream list again when started (so cameras added
-after page load are captured) and records all streams into a single MKV.
-
-| Parameter | Required | Description |
-|-----------|----------|-------------|
-| `host`    | **Yes**  | Pi Tailscale IP, e.g. `100.91.79.23` |
-| `name`    | No       | Stream prefix & display name; **defaults to `host`** when omitted |
-
-If `?host=` is missing, the page shows an error prompt. Camera enumeration is also
-available as an API: `GET /api/cameras?name=kutwali` (or `?host=<IP>`).
-
-## `.env` options
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `GO2RTC_URL` | `https://cams.drone.starwatch.bb7fab11.sslip.io` | Centralized go2rtc server URL |
-| `AGENT_PORT` | `8080` | drone-agent on the Pi |
-| `VIEWER_HOST` | `0.0.0.0` | Bind address |
-| `VIEWER_PORT` | `8091` | Web UI port |
-
-## What the Pi needs
-
-Same as [Gimbal_Control](../Gimbal_Control/docs/SETUP_NEW_DRONE.md) Part 3 — **no extra install** if the Pi already runs:
-
-- `go2rtc` with camera streams
-- `drone-agent` with MAVLink bridge
-- `MAVProxy` → `127.0.0.1:14550`
-
-This viewer only **reads** telemetry and video; it does not replace the fleet dashboard.
-
-## Copy to another device (no git)
-
-Copy the whole `Drone_View` folder, install deps, run `__main__.py`. Point your browser to the drone's IP via the `?host=` and `?name=` query params.
-
-Exclude `.venv` when copying — recreate on each device:
-
-```bash
-rsync -avz --exclude '.venv' Drone_View/ user@device:/path/Drone_View/
-```
-
-## vs Gimbal_Control fleet dashboard
-
-| | **Drone_View** | **Gimbal_Control** |
-|--|----------------|---------------------|
-| Drones | One (URL `?host=&name=`) | Many (`drones.yaml`) |
-| Video | All discovered feeds at once | Toggle visible/thermal |
-| Gimbal / mission / params | No | Yes |
-| Port | 8091 | 8090 |

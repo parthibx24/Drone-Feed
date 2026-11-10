@@ -1,0 +1,16 @@
+// Example Tailscale ACL fragment: only the central server (and admins) may
+// reach the drones' control ports. Merge into the tailnet policy file.
+{
+  "tagOwners": {
+    "tag:drone":  ["autogroup:admin"],
+    "tag:ground": ["autogroup:admin"],
+  },
+  "acls": [
+    // Ground server -> drones: MAVLink (gateway link, GCS TCP) and video.
+    {"action": "accept", "src": ["tag:ground"], "dst": ["tag:drone:14560,14551,1984,8554,8555"]},
+    // Admins -> drones: SSH and everything else, for maintenance.
+    {"action": "accept", "src": ["autogroup:admin"], "dst": ["tag:drone:*"]},
+    // Operators' browsers -> ground server API / video.
+    {"action": "accept", "src": ["autogroup:member"], "dst": ["tag:ground:8091,1984,8555"]},
+  ],
+}

@@ -1,4 +1,13 @@
-import type { Health, Telemetry, ViewerConfig } from "../types/drone";
+import type {
+  CamerasResponse,
+  DroneSummary,
+  Limits,
+  Me,
+  MissionItem,
+  Param,
+  Snapshot,
+  StatusText,
+} from "../types/gateway";
 import type {
   Recording,
   RecordingSort,
@@ -6,32 +15,65 @@ import type {
   RecordingStatusResponse,
   RecordingStopResponse,
 } from "../types/recording";
+import { request } from "./http";
 
-async function request<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, init);
-  if (!response.ok) {
-    const body = (await response.json().catch(() => null)) as { detail?: string } | null;
-    throw new Error(body?.detail ?? `HTTP ${response.status}`);
-  }
-  return (await response.json()) as T;
-}
-
-const param = encodeURIComponent;
+const enc = encodeURIComponent;
+const drone = (id: string, path = "") => `/api/v1/drones/${enc(id)}${path}`;
+const post = <T = { ok: boolean }>(url: string, json?: unknown) => request<T>(url, { method: "POST", json });
 
 export const api = {
-  config: () => request<ViewerConfig>("/api/config"),
-  cameras: (name: string) =>
-    request<{ cameras?: string[] }>(`/api/cameras?name=${param(name)}`),
-  health: (host: string) => request<Health>(`/api/health?host=${param(host)}`),
-  telemetry: (host: string) => request<Telemetry>(`/api/telemetry?host=${param(host)}`),
+  // --- auth
+  me: () => request<Me>("/api/auth/me"),
+  login: (username: string, password: string) =>
+    request<Me>("/api/auth/login", { method: "POST", json: { username, password } }),
+  logout: () => post("/api/auth/logout"),
 
-  recordingStatus: () => request<RecordingStatusResponse>("/api/recording/status"),
-  startRecording: (name: string) =>
-    request<RecordingStartResponse>(`/api/recording/start?name=${param(name)}`, { method: "POST" }),
-  stopRecording: (name: string) =>
-    request<RecordingStopResponse>(`/api/recording/stop?name=${param(name)}`, { method: "POST" }),
+  // --- fleet + telemetry
+  drones: () => request<DroneSummary[]>("/api/v1/drones"),
+  snapshot: (id: string) => request<Snapshot>(drone(id)),
+  statusTexts: (id: string) => request<StatusText[]>(drone(id, "/statustext")),
+  modes: (id: string) => request<string[]>(drone(id, "/modes")),
+  limits: () => request<Limits>("/api/v1/limits"),
+
+  // --- flight
+  arm: (id: string) => post(drone(id, "/arm")),
+  disarm: (id: string) => post(drone(id, "/disarm")),
+  setMode: (id: string, mode: string) => post(drone(id, "/mode"), { mode }),
+  takeoff: (id: string, altM: number) => post(drone(id, "/takeoff"), { alt_m: altM }),
+  land: (id: string) => post(drone(id, "/land")),
+  rtl: (id: string) => post(drone(id, "/rtl")),
+  pause: (id: string) => post(drone(id, "/pause")),
+  resume: (id: string) => post(drone(id, "/resume")),
+  goto: (id: string, lat: number, lon: number, altM: number) => post(drone(id, "/goto"), { lat, lon, alt_m: altM }),
+
+  // --- mission
+  mission: (id: string) => request<{ items: MissionItem[] }>(drone(id, "/mission")),
+  uploadMission: (id: string, items: MissionItem[]) =>
+    request<{ ok: boolean; count: number }>(drone(id, "/mission"), { method: "PUT", json: { items } }),
+  clearMission: (id: string) => request<{ ok: boolean }>(drone(id, "/mission"), { method: "DELETE" }),
+  startMission: (id: string) => post(drone(id, "/mission/start")),
+  setMissionCurrent: (id: string, seq: number) => post(drone(id, "/mission/current"), { seq }),
+
+  // --- parameters
+  params: (id: string, refresh: boolean) =>
+    request<{ params: Param[]; cached: boolean }>(drone(id, `/params${refresh ? "?refresh=1" : ""}`)),
+  setParam: (id: string, name: string, value: number) =>
+    request<{ ok: boolean; param: Param }>(drone(id, `/params/${enc(name)}`), { method: "PUT", json: { value } }),
+
+  // --- gimbal + camera
+  gimbalCenter: (id: string) => post(drone(id, "/gimbal/center")),
+  gimbalMode: (id: string, mode: "follow" | "lock") => post(drone(id, "/gimbal/mode"), { mode }),
+  zoom: (id: string, type: "step" | "range" | "continuous", value: number) =>
+    post(drone(id, "/camera/zoom"), { type, value }),
+  photo: (id: string) => post(drone(id, "/camera/photo")),
+  cameras: (id: string) => request<CamerasResponse>(drone(id, "/cameras")),
+
+  // --- recordings
+  recordingStatus: () => request<RecordingStatusResponse>("/api/v1/recordings/status"),
+  startRecording: (id: string) => post<RecordingStartResponse>(drone(id, "/recording/start")),
+  stopRecording: (id: string) => post<RecordingStopResponse>(drone(id, "/recording/stop")),
   recordings: ({ sortBy, order }: RecordingSort) =>
-    request<Recording[]>(`/api/recordings?sort_by=${param(sortBy)}&order=${param(order)}`),
-  deleteRecording: (path: string) =>
-    request<unknown>(`/api/recordings/${param(path)}`, { method: "DELETE" }),
+    request<Recording[]>(`/api/v1/recordings?sort_by=${enc(sortBy)}&order=${enc(order)}`),
+  deleteRecording: (relativePath: string) =>
+    request<unknown>(`/api/v1/recordings/${relativePath.split("/").map(enc).join("/")}`, { method: "DELETE" }),
 };

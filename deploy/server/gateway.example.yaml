@@ -1,0 +1,68 @@
+# StarWatch central server (drone-gateway) configuration.
+# Copy to gateway.yaml next to docker-compose.yml. ${VAR} is replaced from the
+# environment (only the ${...} form), so keep secrets in .env.
+
+# Same port the old Drone-Feed used, so existing links keep working.
+listen: ":8091"
+
+# The React UI (inside the Docker image). Leave as is.
+web_dir: /app/web
+
+# Server-side recordings (mount a volume here).
+recordings_dir: /recordings
+
+# --- Login -------------------------------------------------------------------
+auth:
+  # Signs login cookies. Set a long random value in .env:
+  #   SESSION_SECRET=$(openssl rand -hex 32)
+  session_secret: ${SESSION_SECRET}
+  session_ttl: 12h
+  # Passwords are bcrypt hashes. Create one with:
+  #   docker compose run --rm dashboard hash-password
+  # role: operator (can fly, record, change parameters) or viewer (watch only).
+  users:
+    - username: admin
+      password_hash: "$2a$12$REPLACE_WITH_OUTPUT_OF_hash-password_xxxxxxxxxxxxxxxxxxxxx"
+      role: operator
+
+# API tokens for scripts/integrations (Authorization: Bearer <token>). Optional.
+# tokens:
+#   - { name: grafana, token: "${GATEWAY_TOKEN_GRAFANA}", role: viewer }
+
+# --- Video (go2rtc) ----------------------------------------------------------
+go2rtc:
+  # What browsers use to play video.
+  public_url: https://cams.drone.starwatch.bb7fab11.sslip.io
+  # What this server uses for camera discovery and recording ingest. In the
+  # central compose go2rtc shares the tailscale network namespace with this
+  # container, so localhost works and avoids the public hop.
+  api_url: http://127.0.0.1:1984
+  rtsp_url: rtsp://127.0.0.1:8554
+  # rtsp (default) | mp4 | hls
+  ingest_mode: rtsp
+
+# --- MAVLink -----------------------------------------------------------------
+# ArduPilot's GCS failsafe counts heartbeats from MAV_GCS_SYSID (255). If QGC is
+# used at the same time, give QGC another system ID (e.g. 254).
+gcs_system_id: 255
+gcs_component_id: 190
+
+telemetry_hz: 5
+
+# Checked before anything is sent to a drone.
+limits:
+  max_alt_m: 120
+  max_speed_m_s: 15
+  max_mission_items: 500
+
+# POST /api/v1/drones/{id}/command (arbitrary COMMAND_LONG). Keep off.
+allow_raw_commands: false
+
+# --- Drones ------------------------------------------------------------------
+drones:
+  - id: kotowali
+    name: Kotowali
+    # mavlink-router's [UdpEndpoint gateway] on the drone Pi, over Tailscale.
+    mavlink: udp:100.111.237.109:14560
+    # go2rtc streams named "<stream_prefix>_*" are this drone's cameras.
+    stream_prefix: kotowali

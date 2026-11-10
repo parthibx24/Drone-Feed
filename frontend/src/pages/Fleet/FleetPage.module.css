@@ -1,0 +1,134 @@
+.wrap {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 30px;
+  padding: 10px 6px;
+  overflow-y: auto;
+}
+
+.heading {
+  margin-left: 4px;
+}
+
+.message {
+  color: var(--color-text-muted);
+  font-size: 17px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
+
+.cardButton {
+  text-align: left;
+  touch-action: manipulation;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  padding: 28px;
+  border: 1px solid var(--color-border-card);
+  transition: border-color 0.12s;
+}
+
+.cardButton:hover .card {
+  border-color: var(--color-accent);
+}
+
+.cardHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.name {
+  font-size: 26px;
+  font-weight: 600;
+}
+
+.id {
+  margin-top: 6px;
+  color: var(--color-text-muted);
+  font-size: 14px;
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 14px;
+  border-radius: var(--radius-panel);
+  background: var(--color-pill);
+  font-size: 14px;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.online .dot {
+  background: var(--color-success);
+}
+
+.offline {
+  color: var(--color-text-muted);
+}
+
+.offline .dot {
+  background: var(--color-danger);
+}
+
+.chips {
+  display: flex;
+  gap: 8px;
+}
+
+.chip {
+  padding: 7px 12px;
+  border: 1px solid var(--color-border-card);
+  border-radius: var(--radius-button);
+  background: var(--color-card);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.armed {
+  border-color: rgba(248, 113, 113, 0.5);
+  color: var(--color-danger);
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid var(--color-border-card);
+  border-radius: var(--radius-card);
+  background: var(--color-card);
+}
+
+.statLabel {
+  color: var(--color-text-muted);
+  font-size: 13px;
+}
+
+.statValue {
+  font-size: 20px;
+  font-weight: 600;
+  white-space: nowrap;
+}

@@ -1,0 +1,16 @@
+.message {
+  color: var(--color-text-subtle);
+  font-size: 17px;
+  line-height: 1.5;
+}
+
+.message strong {
+  color: var(--color-text);
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 28px;
+}

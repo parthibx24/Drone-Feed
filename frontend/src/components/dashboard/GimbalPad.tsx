@@ -14,11 +14,12 @@ const DIRECTIONS = [
 interface DirectionButtonProps {
   id: (typeof DIRECTIONS)[number]["id"];
   label: string;
+  disabled: boolean;
   onPress: () => void;
   onRelease: () => void;
 }
 
-function DirectionButton({ id, label, onPress, onRelease }: DirectionButtonProps) {
+function DirectionButton({ id, label, disabled, onPress, onRelease }: DirectionButtonProps) {
   const { active, pressProps } = usePressHold(onPress, onRelease);
   return (
     <button
@@ -26,14 +27,15 @@ function DirectionButton({ id, label, onPress, onRelease }: DirectionButtonProps
       className={`${styles.direction} ${styles[id]} ${active ? styles.active : ""}`}
       aria-label={label}
       title={label}
+      disabled={disabled}
       {...pressProps}
     />
   );
 }
 
-type GimbalPadProps = Pick<GimbalControls, "move" | "stop" | "center">;
+type GimbalPadProps = Pick<GimbalControls, "move" | "stop" | "center"> & { disabled?: boolean };
 
-export function GimbalPad({ move, stop, center }: GimbalPadProps) {
+export function GimbalPad({ move, stop, center, disabled = false }: GimbalPadProps) {
   return (
     <div className={styles.pad}>
       <Panel className={styles.artwork}>
@@ -44,6 +46,7 @@ export function GimbalPad({ move, stop, center }: GimbalPadProps) {
           key={id}
           id={id}
           label={label}
+          disabled={disabled}
           onPress={() => move(yaw, pitch)}
           onRelease={stop}
         />
@@ -53,6 +56,7 @@ export function GimbalPad({ move, stop, center }: GimbalPadProps) {
         className={styles.center}
         aria-label="Center"
         title="Center"
+        disabled={disabled}
         onClick={center}
       />
     </div>

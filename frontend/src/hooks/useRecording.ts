@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../services/api";
 import type { Recording, RecordingState, RecordingStopResponse } from "../types/recording";
+import { errorText } from "../services/http";
 import type { Notify } from "./useToast";
 
 const STATUS_POLL_MS = 3000;
@@ -12,8 +13,9 @@ function stopMessage(result: RecordingStopResponse): string {
   return `Saved ${result.filename} (${duration}, ${result.file_size_human ?? ""})`;
 }
 
-/** Server-side recording state for one drone, plus the actions that change it. */
-export function useRecording(name: string, notify: Notify) {
+/** Server-side recording state for one drone, plus the actions that change it.
+ * Recordings are keyed by the drone's stream prefix on the server. */
+export function useRecording(droneId: string, name: string, notify: Notify) {
   const [state, setState] = useState<RecordingState>("idle");
   const [startTime, setStartTime] = useState<number | null>(null);
   const [listVersion, setListVersion] = useState(0);
@@ -61,30 +63,30 @@ export function useRecording(name: string, notify: Notify) {
     busy.current = true;
     setState("starting");
     try {
-      const result = await api.startRecording(name);
+      const result = await api.startRecording(droneId);
       const next = result.state ?? "waiting";
       applyServerState(next, result.start_time);
       notify(next === "waiting" ? "Waiting for active camera feed from go2rtc…" : "Recording started");
     } catch (error) {
       applyServerState("idle");
-      notify(`Record failed: ${(error as Error).message}`);
+      notify(`Record failed: ${errorText(error)}`);
     } finally {
       busy.current = false;
     }
-  }, [name, notify, applyServerState]);
+  }, [droneId, notify, applyServerState]);
 
   const stop = useCallback(async () => {
     busy.current = true;
     setState("saving");
     try {
-      notify(stopMessage(await api.stopRecording(name)));
+      notify(stopMessage(await api.stopRecording(droneId)));
     } catch (error) {
-      notify(`Stop record failed: ${(error as Error).message}`);
+      notify(`Stop record failed: ${errorText(error)}`);
     } finally {
       applyServerState("idle");
       busy.current = false;
     }
-  }, [name, notify, applyServerState]);
+  }, [droneId, notify, applyServerState]);
 
   const toggle = useCallback(() => {
     if (busy.current) return;
@@ -99,7 +101,7 @@ export function useRecording(name: string, notify: Notify) {
         notify(`Deleted ${item.filename}`);
         refreshList();
       } catch (error) {
-        notify(`Delete failed: ${(error as Error).message}`);
+        notify(`Delete failed: ${errorText(error)}`);
       }
     },
     [notify, refreshList],

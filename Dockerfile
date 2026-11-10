@@ -1,44 +1,37 @@
-# Build the React UI into /app/static
-FROM node:22-slim AS frontend
-WORKDIR /app/frontend
+# StarWatch central server: drone-gateway (Go) serving the React UI.
+#   docker build -t starwatch-server .
+
+# 1. React UI
+FROM node:22-slim AS web
+WORKDIR /src/frontend
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
 COPY frontend/ ./
 RUN npm run build
 
-FROM python:3.11-slim
+# 2. Go server
+FROM golang:1.26-alpine AS server
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+COPY internal/ internal/
+COPY server/ server/
+COPY drone/ drone/
+COPY tools/ tools/
+ARG VERSION=docker
+RUN CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=${VERSION}" -o /out/drone-gateway ./server/cmd/drone-gateway
 
-# Prevent Python from writing .pyc files and enable unbuffered logging
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    VIEWER_HOST=0.0.0.0 \
-    VIEWER_PORT=8091
-
-WORKDIR /app
-
-# Install curl for container health check and ffmpeg for server-side recording
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl \
-    ffmpeg \
- && rm -rf /var/lib/apt/lists/*
-
-RUN mkdir -p /app/recording /app/recordings
-
-
-# Install dependencies first for build caching
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Copy application source code
-COPY . .
-COPY --from=frontend /app/static ./static
-
-# Expose default viewer port
+# 3. Runtime: small image with ffmpeg/ffprobe for server-side recording
+FROM alpine:3.22
+RUN apk add --no-cache ffmpeg ca-certificates tzdata wget \
+ && adduser -D -H -u 10001 starwatch \
+ && mkdir -p /recordings /config \
+ && chown starwatch /recordings
+COPY --from=server /out/drone-gateway /usr/local/bin/drone-gateway
+COPY --from=web /src/frontend/dist /app/web
+USER starwatch
 EXPOSE 8091
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:${VIEWER_PORT:-8091}/api/config || exit 1
-
-# Run application
-CMD ["python", "__main__.py"]
+VOLUME ["/recordings"]
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD wget -q -O /dev/null http://127.0.0.1:8091/healthz || exit 1
+ENTRYPOINT ["drone-gateway", "-config", "/config/gateway.yaml", "-json-logs"]

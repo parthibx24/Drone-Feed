@@ -1,0 +1,17 @@
+[Unit]
+Description=Skydroid C12 MAVLink camera + gimbal bridge
+Wants=network-online.target mavlink-router.service
+After=network-online.target mavlink-router.service
+
+[Service]
+Type=simple
+User=dronepi
+Group=dronepi
+EnvironmentFile=/etc/drone-stack/gimbal-bridge.env
+ExecStart=/opt/drone-stack/bin/gimbal-bridge
+Restart=always
+RestartSec=3
+MemoryMax=48M
+
+[Install]
+WantedBy=multi-user.target

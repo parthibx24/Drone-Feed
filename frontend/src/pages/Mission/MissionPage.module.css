@@ -1,0 +1,227 @@
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  gap: 18px;
+  width: 560px;
+  padding: 28px 24px 24px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.badge {
+  padding: 6px 12px;
+  border-radius: var(--radius-panel);
+  background: var(--color-pill);
+  color: var(--color-success);
+  font-size: 13px;
+}
+
+.badgeDirty {
+  color: var(--color-warning);
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.addRow {
+  display: flex;
+  gap: 10px;
+}
+
+.options {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--color-text-subtle);
+  font-size: 14px;
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.check input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--color-accent);
+}
+
+.altDefault {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.smallInput {
+  width: 80px;
+  height: 38px;
+}
+
+.list {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 120px;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.empty {
+  padding: 30px 10px;
+  color: var(--color-text-muted);
+  font-size: 15px;
+  text-align: center;
+}
+
+.item {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 12px;
+  height: 46px;
+  padding: 0 10px 0 8px;
+  border: 1px solid var(--color-border-card);
+  border-radius: var(--radius-card);
+  background: var(--color-card);
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.itemSelected {
+  border-color: var(--color-warning);
+}
+
+.itemActive {
+  border-color: var(--color-accent);
+  background: rgba(0, 212, 170, 0.08);
+}
+
+.num {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--color-tile);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.desc {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.flying {
+  color: var(--color-accent);
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.itemActions {
+  display: flex;
+  gap: 2px;
+}
+
+.itemActions button {
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-button);
+  color: var(--color-text-subtle);
+  font-size: 15px;
+  touch-action: manipulation;
+}
+
+.itemActions button:hover:not(:disabled) {
+  background: var(--color-pill);
+  color: var(--color-text);
+}
+
+.editor {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--color-border-card);
+  border-radius: var(--radius-card);
+  background: var(--color-card);
+}
+
+.editorTitle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.typeSelect {
+  height: 38px;
+  font-size: 14px;
+}
+
+.fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.noFields {
+  grid-column: span 2;
+  color: var(--color-text-muted);
+  font-size: 14px;
+}
+
+.problems {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.error {
+  color: var(--color-danger);
+}
+
+.warning {
+  color: var(--color-warning);
+}
+
+.confirmWarnings {
+  margin: 14px 0 0 18px;
+  color: var(--color-warning);
+  font-size: 15px;
+}
+
+.mapPanel {
+  flex: 1;
+  isolation: isolate;
+}
+
+.progress {
+  position: absolute;
+  bottom: 18px;
+  left: 18px;
+  z-index: 500;
+  padding: 10px 16px;
+  border: 1px solid var(--color-border-control);
+  border-radius: var(--radius-control);
+  background: var(--color-page);
+  font-size: 15px;
+  font-weight: 600;
+}

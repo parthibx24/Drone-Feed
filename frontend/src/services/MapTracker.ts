@@ -14,6 +14,7 @@ export class MapTracker {
   private readonly markerHtml: string;
   private readonly trailPoints: L.LatLngTuple[] = [];
   private marker: L.Marker | null = null;
+  private target: L.CircleMarker | null = null;
 
   constructor(element: HTMLElement, markerHtml: string, trailColor: string) {
     this.markerHtml = markerHtml;
@@ -38,6 +39,21 @@ export class MapTracker {
     this.trailPoints.push([lat, lon]);
     if (this.trailPoints.length > MAX_TRAIL_POINTS) this.trailPoints.shift();
     this.trail.setLatLngs(this.trailPoints);
+  }
+
+  /** Calls handler with the clicked position (null removes it). */
+  onClick(handler: ((lat: number, lon: number) => void) | null): void {
+    this.map.off("click");
+    if (handler) this.map.on("click", (event: L.LeafletMouseEvent) => handler(event.latlng.lat, event.latlng.lng));
+    this.map.getContainer().style.cursor = handler ? "crosshair" : "";
+  }
+
+  /** Shows (or clears) a goto target ring. */
+  setTarget(position: [number, number] | null): void {
+    this.target?.remove();
+    this.target = position
+      ? L.circleMarker(position, { radius: 9, color: "#fbbf24", weight: 3, fillOpacity: 0.15 }).addTo(this.map)
+      : null;
   }
 
   destroy(): void {

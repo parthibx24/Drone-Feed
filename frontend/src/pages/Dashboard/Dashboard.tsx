@@ -7,95 +7,162 @@ import { RecordingPreviewModal } from "../../components/dashboard/RecordingPrevi
 import { RecordingsLibraryModal } from "../../components/dashboard/RecordingsLibraryModal";
 import { StatsPanel } from "../../components/dashboard/StatsPanel";
 import { ThermalFilter } from "../../components/dashboard/ThermalFilter";
-import { TopBar, type LinkStatus } from "../../components/dashboard/TopBar";
 import { VideoStage } from "../../components/dashboard/VideoStage";
+import { FlightPanel } from "../../components/flight/FlightPanel";
+import { DroneTopBar } from "../../components/layout/DroneTopBar";
+import { PageFrame } from "../../components/layout/PageFrame";
+import { useConfirm } from "../../components/ui/ConfirmDialog";
 import { Panel } from "../../components/ui/Panel";
 import { Toast } from "../../components/ui/Toast";
+import { useAuth } from "../../context/AuthContext";
+import { useDrone } from "../../context/DroneContext";
 import { useCameras } from "../../hooks/useCameras";
 import { useGimbal } from "../../hooks/useGimbal";
 import { useKeyboardShortcuts } from "../../hooks/useKeyboardShortcuts";
 import { useRecording } from "../../hooks/useRecording";
-import { useTelemetry } from "../../hooks/useTelemetry";
 import { useToast } from "../../hooks/useToast";
-import type { DroneParams, LinkState } from "../../types/drone";
+import { api } from "../../services/api";
+import { errorText } from "../../services/http";
+import type { LinkState } from "../../types/drone";
 import type { Recording } from "../../types/recording";
 import { buildStats } from "../../utils/format";
+import { toTelemetry } from "../../utils/telemetry";
 import styles from "./Dashboard.module.css";
 
-export function Dashboard({ drone }: { drone: DroneParams }) {
+type SidebarTab = "flight" | "recordings";
+
+export function Dashboard() {
   const { message, notify } = useToast();
-  const { telemetry, agentLink, mavlinkLink } = useTelemetry(drone.host);
-  const cameras = useCameras(drone.name);
-  const gimbal = useGimbal(drone.host, telemetry.zoom_level ?? telemetry.zoom ?? null, notify);
-  const recording = useRecording(drone.name, notify);
+  const confirm = useConfirm();
+  const { canOperate } = useAuth();
+  const { id, info, snapshot, sendGimbalRate } = useDrone();
+  const telemetry = useMemo(() => toTelemetry(snapshot), [snapshot]);
+  const prefix = info?.stream_prefix;
+
+  const cameras = useCameras(id, prefix);
+  const gimbal = useGimbal(id, sendGimbalRate, null, notify);
+  const recording = useRecording(id, prefix ?? id, notify);
 
   const [feedLinks, setFeedLinks] = useState<Record<string, LinkState>>({});
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [previewItem, setPreviewItem] = useState<Recording | null>(null);
+  const [tab, setTab] = useState<SidebarTab>("flight");
+  const [gotoActive, setGotoActive] = useState(false);
+  const [gotoTarget, setGotoTarget] = useState<[number, number] | null>(null);
 
-  useKeyboardShortcuts({ gimbal, toggleRecording: recording.toggle });
+  useKeyboardShortcuts({ gimbal, toggleRecording: recording.toggle, enabled: canOperate });
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       if (previewItem) setPreviewItem(null);
+      else if (gotoActive) setGotoActive(false);
       else setLibraryOpen(false);
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [previewItem]);
+  }, [previewItem, gotoActive]);
 
   const handleFeedPlaying = useCallback((stream: string, playing: boolean) => {
     const next: LinkState = playing ? "ok" : "bad";
     setFeedLinks((links) => (links[stream] === next ? links : { ...links, [stream]: next }));
   }, []);
 
-  const links = useMemo<LinkStatus[]>(
-    () => [
-      { label: "Agent", state: agentLink },
-      { label: "MAVLink", state: mavlinkLink },
-      ...(cameras?.feeds ?? []).map((feed) => ({
-        label: feed.label,
-        state: feedLinks[feed.stream] ?? ("checking" as const),
-      })),
-    ],
-    [agentLink, mavlinkLink, cameras, feedLinks],
+  const handleGoto = useCallback(
+    async (lat: number, lon: number) => {
+      setGotoActive(false);
+      setGotoTarget([lat, lon]);
+      const alt = Math.max(5, Math.round(snapshot?.position?.alt_rel_m ?? 0));
+      const ok = await confirm.ask({
+        title: "Fly here?",
+        message: (
+          <>
+            The drone switches to GUIDED and flies to <strong>{lat.toFixed(6)}, {lon.toFixed(6)}</strong> at{" "}
+            <strong>{alt} m</strong> above home (its current altitude).
+          </>
+        ),
+        confirmLabel: "Go",
+        danger: true,
+      });
+      if (!ok) {
+        setGotoTarget(null);
+        return;
+      }
+      try {
+        await api.goto(id, lat, lon, alt);
+        notify("Flying to target");
+      } catch (error) {
+        notify(errorText(error));
+        setGotoTarget(null);
+      }
+    },
+    [confirm, id, notify, snapshot?.position?.alt_rel_m],
   );
 
+  const feedStatuses = (cameras?.feeds ?? []).map((feed) => ({
+    label: feed.label,
+    state: feedLinks[feed.stream] ?? ("checking" as const),
+  }));
   const recordingHandlers = { onPreview: setPreviewItem, onDelete: recording.deleteRecording };
+  const canGoto = canOperate && Boolean(snapshot?.online && snapshot.armed);
 
   return (
-    <div className={styles.page}>
+    <PageFrame header={<DroneTopBar extraLinks={feedStatuses} />}>
       <ThermalFilter />
-      <TopBar droneName={drone.name} links={links} />
-
-      <main className={styles.content}>
-        <Panel className={styles.sidebar}>
-          <StatsPanel stats={buildStats(telemetry, gimbal.zoom)} />
-          <RecentRecordings
-            listVersion={recording.listVersion}
-            onSeeAll={() => setLibraryOpen(true)}
-            {...recordingHandlers}
-          />
-        </Panel>
-
-        <div className={styles.column}>
-          <VideoStage
-            go2rtcUrl={cameras?.go2rtcUrl ?? ""}
-            feeds={cameras?.feeds ?? []}
-            telemetry={telemetry}
-            gimbal={gimbal}
-            recording={recording}
-            onFeedPlayingChange={handleFeedPlaying}
-            onOpenLibrary={() => setLibraryOpen(true)}
-          />
-          <div className={styles.bottomRow}>
-            <Compass heading={telemetry.heading_deg} />
-            <DroneMap telemetry={telemetry} />
-            <GimbalPad move={gimbal.move} stop={gimbal.stop} center={gimbal.center} />
+      <Panel className={styles.sidebar}>
+        <StatsPanel stats={buildStats(telemetry, gimbal.zoom)} />
+        <div className={styles.lower}>
+          <div className={styles.tabs} role="tablist">
+            {(["flight", "recordings"] as const).map((t) => (
+              <button
+                key={t}
+                type="button"
+                role="tab"
+                aria-selected={tab === t}
+                className={`${styles.tab} ${tab === t ? styles.tabActive : ""}`}
+                onClick={() => setTab(t)}
+              >
+                {t === "flight" ? "Flight" : "Recordings"}
+              </button>
+            ))}
           </div>
+          {tab === "flight" ? (
+            <div className={styles.flight}>
+              <FlightPanel notify={notify} confirm={confirm} />
+            </div>
+          ) : (
+            <RecentRecordings
+              listVersion={recording.listVersion}
+              onSeeAll={() => setLibraryOpen(true)}
+              {...recordingHandlers}
+            />
+          )}
         </div>
-      </main>
+      </Panel>
+
+      <div className={styles.column}>
+        <VideoStage
+          go2rtcUrl={cameras?.go2rtcUrl ?? ""}
+          feeds={cameras?.feeds ?? []}
+          telemetry={telemetry}
+          gimbal={gimbal}
+          recording={recording}
+          canOperate={canOperate}
+          onFeedPlayingChange={handleFeedPlaying}
+          onOpenLibrary={() => setLibraryOpen(true)}
+        />
+        <div className={styles.bottomRow}>
+          <Compass heading={telemetry.heading_deg} />
+          <DroneMap
+            telemetry={telemetry}
+            onGoto={handleGoto}
+            gotoActive={gotoActive}
+            onToggleGoto={canGoto ? () => setGotoActive((v) => !v) : undefined}
+            target={gotoTarget}
+          />
+          <GimbalPad move={gimbal.move} stop={gimbal.stop} center={gimbal.center} disabled={!canOperate} />
+        </div>
+      </div>
 
       {libraryOpen && (
         <RecordingsLibraryModal
@@ -105,7 +172,8 @@ export function Dashboard({ drone }: { drone: DroneParams }) {
         />
       )}
       {previewItem && <RecordingPreviewModal item={previewItem} onClose={() => setPreviewItem(null)} />}
+      {confirm.element}
       <Toast message={message} />
-    </div>
+    </PageFrame>
   );
 }

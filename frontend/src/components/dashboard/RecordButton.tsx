@@ -18,7 +18,7 @@ const TITLES: Partial<Record<RecordingState, string>> = {
   recording: "Stop recording",
 };
 
-export function RecordButton({ recording }: { recording: RecordingControls }) {
+export function RecordButton({ recording, disabled = false }: { recording: RecordingControls; disabled?: boolean }) {
   const { state, startTime, toggle } = recording;
   const elapsed = useElapsedSeconds(state === "recording" ? startTime : null);
   const label = state === "recording" ? `Stop ${formatClock(elapsed)}` : LABELS[state];
@@ -29,7 +29,7 @@ export function RecordButton({ recording }: { recording: RecordingControls }) {
         type="button"
         className={`${styles.button} ${styles[state]}`}
         title={TITLES[state]}
-        disabled={state === "starting" || state === "saving"}
+        disabled={disabled || state === "starting" || state === "saving"}
         onClick={toggle}
       >
         {label}

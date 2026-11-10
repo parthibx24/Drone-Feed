@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { GimbalClient, type ZoomDirection } from "../services/GimbalClient";
+import { errorText } from "../services/http";
 import type { Notify } from "./useToast";
 
 const DEFAULT_SPEED = 4;
@@ -7,8 +8,15 @@ const ZOOM_STEP = 0.1;
 const MIN_ZOOM = 1;
 
 /** Gimbal movement and camera zoom; telemetry overrides the optimistic zoom when it reports one. */
-export function useGimbal(host: string, reportedZoom: number | null, notify: Notify) {
-  const client = useMemo(() => new GimbalClient(host), [host]);
+export function useGimbal(
+  droneId: string,
+  sendRate: (pitchDegS: number, yawDegS: number) => void,
+  reportedZoom: number | null,
+  notify: Notify,
+) {
+  const client = useMemo(() => new GimbalClient(droneId, sendRate), [droneId, sendRate]);
+
+  useEffect(() => () => client.dispose(), [client]);
   const [speed, setSpeed] = useState(DEFAULT_SPEED);
   const [zoom, setZoom] = useState(MIN_ZOOM);
   const speedRef = useRef(speed);
@@ -26,25 +34,23 @@ export function useGimbal(host: string, reportedZoom: number | null, notify: Not
     [client],
   );
 
-  const stop = useCallback(() => {
-    client.stop().catch(() => {});
-  }, [client]);
+  const stop = useCallback(() => client.stop(), [client]);
 
   const center = useCallback(() => {
     client
       .center()
       .then(() => notify("Gimbal centered"))
-      .catch((error: Error) => notify(error.message));
+      .catch((error) => notify(errorText(error)));
   }, [client, notify]);
 
   const zoomStep = useCallback(
     (direction: ZoomDirection) => {
-      client.zoom(direction).catch(() => {});
+      client.zoom(direction).catch((error) => notify(errorText(error)));
       setZoom((current) =>
         direction === "in" ? current + ZOOM_STEP : Math.max(MIN_ZOOM, current - ZOOM_STEP),
       );
     },
-    [client],
+    [client, notify],
   );
 
   const zoomReset = useCallback(() => {
@@ -54,7 +60,7 @@ export function useGimbal(host: string, reportedZoom: number | null, notify: Not
         setZoom(MIN_ZOOM);
         notify("Zoom reset");
       })
-      .catch((error: Error) => notify(error.message));
+      .catch((error) => notify(errorText(error)));
   }, [client, notify]);
 
   return { speed, setSpeed, zoom, move, stop, center, zoomStep, zoomReset };

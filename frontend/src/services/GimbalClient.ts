@@ -1,77 +1,55 @@
-const BASE = "/api/gimbal";
-const JOG_INTERVAL_MS = 100;
+import { api } from "./api";
+
+/** How often hold-to-move rates are re-sent. The bridge stops the gimbal if
+ * updates stop for 600 ms (dead-man), so this must stay well under that. */
+const RATE_INTERVAL_MS = 150;
 
 export type ZoomDirection = "in" | "out";
 
-/** Gimbal and camera control through the viewer's REST proxy. */
+/** Gimbal and camera control through drone-gateway. */
 export class GimbalClient {
-  private moveTimer: ReturnType<typeof setInterval> | null = null;
-  private jogInFlight = false;
-  private readonly host: string;
+  private timer: ReturnType<typeof setInterval> | null = null;
+  private readonly droneId: string;
+  private readonly sendRate: (pitchDegS: number, yawDegS: number) => void;
 
-  constructor(host: string) {
-    this.host = host;
+  constructor(droneId: string, sendRate: (pitchDegS: number, yawDegS: number) => void) {
+    this.droneId = droneId;
+    this.sendRate = sendRate;
   }
 
+  /** Starts moving: yaw/pitch are directions (-1, 0, 1), speed in deg/s. */
   move(yaw: number, pitch: number, speed: number): void {
-    this.clearMoveTimer();
-    const tick = () => {
-      this.jog(yaw, pitch, speed).catch((error) => console.warn("jog failed", error));
-    };
+    this.clearTimer();
+    const tick = () => this.sendRate(pitch * speed, yaw * speed);
     tick();
-    this.moveTimer = setInterval(tick, JOG_INTERVAL_MS);
+    this.timer = setInterval(tick, RATE_INTERVAL_MS);
   }
 
-  async stop(): Promise<void> {
-    this.clearMoveTimer();
-    await this.post("/stop");
+  stop(): void {
+    this.clearTimer();
+    this.sendRate(0, 0);
   }
 
-  center(): Promise<void> {
-    return this.post("/ptz/center");
+  center(): Promise<unknown> {
+    return api.gimbalCenter(this.droneId);
   }
 
-  zoom(direction: ZoomDirection): Promise<void> {
-    return this.post(`/zoom/${direction}`);
+  zoom(direction: ZoomDirection): Promise<unknown> {
+    return api.zoom(this.droneId, "step", direction === "in" ? 1 : -1);
   }
 
-  zoomReset(): Promise<void> {
-    return this.post("/zoom-level", { level: 1 });
+  zoomReset(): Promise<unknown> {
+    return api.zoom(this.droneId, "range", 0);
   }
 
-  private url(path: string): string {
-    return `${BASE}${path}?host=${encodeURIComponent(this.host)}`;
+  dispose(): void {
+    if (this.timer) this.stop();
   }
 
-  private clearMoveTimer(): void {
-    if (this.moveTimer) {
-      clearInterval(this.moveTimer);
-      this.moveTimer = null;
+  private clearTimer(): void {
+    if (this.timer) {
+      clearInterval(this.timer);
+      this.timer = null;
     }
-  }
-
-  /** Skips a tick while the previous jog is still in flight, to avoid request pile-up. */
-  private async jog(yaw: number, pitch: number, speed: number): Promise<void> {
-    if (this.jogInFlight) return;
-    this.jogInFlight = true;
-    try {
-      await fetch(this.url("/jog"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ yaw, pitch, speed }),
-      });
-    } finally {
-      this.jogInFlight = false;
-    }
-  }
-
-  private async post(path: string, body?: unknown): Promise<void> {
-    const init: RequestInit = { method: "POST" };
-    if (body !== undefined) {
-      init.headers = { "Content-Type": "application/json" };
-      init.body = JSON.stringify(body);
-    }
-    const response = await fetch(this.url(path), init);
-    if (!response.ok) throw new Error(`${path} → ${response.status}`);
   }
 }

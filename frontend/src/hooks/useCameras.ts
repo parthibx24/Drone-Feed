@@ -8,32 +8,25 @@ interface Cameras {
   feeds: CameraFeed[];
 }
 
-async function discoverStreams(name: string): Promise<string[]> {
-  try {
-    const { cameras } = await api.cameras(name);
-    if (cameras?.length) return cameras;
-  } catch (error) {
-    console.warn("Camera enumeration failed:", error);
-  }
-  return defaultStreams(name);
-}
-
-export function useCameras(name: string): Cameras | null {
+/** The drone's camera feeds, discovered in go2rtc by stream prefix ("<prefix>_*"). */
+export function useCameras(droneId: string, streamPrefix: string | undefined): Cameras | null {
   const [cameras, setCameras] = useState<Cameras | null>(null);
 
   useEffect(() => {
+    if (!streamPrefix) return;
     let cancelled = false;
-    Promise.all([api.config(), discoverStreams(name)])
-      .then(([config, streams]) => {
-        if (!cancelled) {
-          setCameras({ go2rtcUrl: config.go2rtc_url ?? "", feeds: toCameraFeeds(streams, name) });
-        }
+    api
+      .cameras(droneId)
+      .then((res) => {
+        if (cancelled) return;
+        const streams = res.streams.length ? res.streams : defaultStreams(streamPrefix);
+        setCameras({ go2rtcUrl: res.go2rtc_url ?? "", feeds: toCameraFeeds(streams, streamPrefix) });
       })
-      .catch((error) => console.error(error));
+      .catch((error) => console.error("Camera discovery failed:", error));
     return () => {
       cancelled = true;
     };
-  }, [name]);
+  }, [droneId, streamPrefix]);
 
   return cameras;
 }

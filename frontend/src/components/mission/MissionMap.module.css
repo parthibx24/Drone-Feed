@@ -1,0 +1,78 @@
+.map {
+  width: 100%;
+  height: 100%;
+  background: var(--color-panel);
+}
+
+.map :global(.leaflet-control-attribution) {
+  background: rgba(9, 12, 8, 0.6);
+  color: var(--color-text-subtle);
+  font-size: 9px;
+}
+
+.map :global(.leaflet-bar a) {
+  background: var(--color-page);
+  color: var(--color-text);
+  border-color: var(--color-border-control);
+}
+
+.pin {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  transform: translate(-50%, -50%);
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: #0b8f74;
+  color: #fff;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 700;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
+}
+
+.roi {
+  border-radius: 6px;
+  background: #7c3aed;
+}
+
+.selected {
+  background: var(--color-warning);
+  color: var(--color-page);
+}
+
+.active {
+  outline: 4px solid rgba(0, 212, 170, 0.6);
+  outline-offset: 2px;
+}
+
+.home {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  transform: translate(-50%, -50%);
+  border: 2px solid #fff;
+  border-radius: 6px;
+  background: #b91c1c;
+  color: #fff;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.drone {
+  position: absolute;
+  width: 0;
+  height: 0;
+  transform: translate(-50%, -50%) rotate(var(--heading, 0deg));
+  border-right: 11px solid transparent;
+  border-bottom: 26px solid #fbbf24;
+  border-left: 11px solid transparent;
+  filter: drop-shadow(0 0 3px rgba(0, 0, 0, 0.8));
+}

@@ -1,8 +1,3 @@
-export interface DroneParams {
-  host: string;
-  name: string;
-}
-
 export type LinkState = "checking" | "ok" | "bad";
 
 export interface Telemetry {
@@ -26,15 +21,6 @@ export interface Telemetry {
   zoom_level?: number | null;
   zoom?: number | null;
   timestamp?: number | null;
-}
-
-export interface Health {
-  agent_ok?: boolean;
-  mavlink_connected?: boolean;
-}
-
-export interface ViewerConfig {
-  go2rtc_url?: string;
 }
 
 export interface CameraFeed {

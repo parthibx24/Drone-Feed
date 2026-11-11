@@ -73,6 +73,8 @@ Run `./drone/deploy/deploy.sh dronepi@<tailscale-ip> transition` from the reposi
 
 ## 4. Server: switch the `dashboard` service
 
+**On Dokploy:** the complete compose file, a ready `gateway.yaml` and step-by-step instructions are in [`deploy/dokploy/`](../deploy/dokploy/README.md). The steps below explain what changes and why.
+
 The new image replaces the old Python Drone-Feed **in the same compose service**. It keeps:
 
 - the same container name;

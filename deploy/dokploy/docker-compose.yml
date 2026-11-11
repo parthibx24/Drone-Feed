@@ -1,0 +1,113 @@
+# StarWatch central server on Dokploy: branch ui-redesign.
+# Paste into the Dokploy Compose app (Provider: Raw). Steps: deploy/dokploy/README.md
+services:
+  tailscale:
+    image: tailscale/tailscale:latest
+    container_name: drone-tailnet
+    hostname: drone-tailnet
+    dns:
+      - 100.100.100.100
+      - 1.1.1.1
+    environment:
+      # Empty is fine once the node is logged in (state lives in the volume).
+      - TS_AUTHKEY=${TS_AUTHKEY:-}
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_USERSPACE=false        # real netns: go2rtc and the dashboard share it
+      # Fixed UDP port (published below) so drones on 4G connect directly
+      # instead of through a Tailscale relay.
+      - TS_TAILSCALED_EXTRA_ARGS=--port=40000
+    volumes:
+      - drone-tailnet:/var/lib/tailscale
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    # Services sharing this network namespace publish their ports here.
+    ports:
+      - "8189:8189/udp"    # WebRTC ICE/media mux
+      - "8555:8555"
+      - "8554:8554"
+      - "40000:40000/udp"  # Tailscale direct connections
+      - "14551:14551"
+    restart: unless-stopped
+
+  filemanager:
+    image: coderaiser/cloudcmd:latest
+    container_name: volume-editor
+    environment:
+      - CLOUDCMD_AUTH=true
+      - CLOUDCMD_USERNAME=admin
+      - CLOUDCMD_PASSWORD=${CLOUDCMD_PASSWORD:?set CLOUDCMD_PASSWORD in the Environment tab}
+    volumes:
+      - drone-tailnet:/root/tailscale
+      - drone-mediamtx:/root/mediamtx
+      - media-configs:/root/media-configs
+      - loki_config:/root/loki-config
+      - grafana_provisioning:/root/provisioning
+    restart: unless-stopped
+
+  go2rtc:
+    image: alexxit/go2rtc:latest
+    container_name: drone-stream-hub
+    network_mode: "service:tailscale"
+    depends_on:
+      - tailscale
+    volumes:
+      - media-configs:/config      # go2rtc.yaml with the drones' streams
+    restart: unless-stopped
+
+  loki:
+    image: grafana/loki:latest
+    container_name: loki
+    restart: unless-stopped
+    ports:
+      - "3100:3100"
+    volumes:
+      - loki_data:/loki
+      - loki_config:/etc/loki
+      - grafana_provisioning:/etc/grafana/provisioning
+    command: -config.file=/etc/loki/local-config.yaml
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    restart: unless-stopped
+    depends_on:
+      - loki
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - grafana_provisioning:/etc/grafana/provisioning
+
+  # Drone-Feed (Python). Builds from branch ui-redesign; see README.md to pin a commit.
+  dashboard:
+    container_name: drone-dashboard
+    network_mode: "service:tailscale"
+    depends_on:
+      - tailscale
+    environment:
+      - GO2RTC_URL=https://cams.drone.starwatch.bb7fab11.sslip.io
+      - AGENT_PORT=8080
+      - VIEWER_HOST=0.0.0.0
+      - VIEWER_PORT=8091
+      - RECORDING_PATH=/recordings
+      - GO2RTC_INGEST_MODE=mp4
+    volumes:
+      - recordings:/recordings
+    build:
+      context: https://github.com/parthibx24/Drone-Feed.git#ui-redesign
+    restart: unless-stopped
+
+volumes:
+  drone-tailnet:
+  drone-mediamtx:
+  media-configs:
+  recordings:
+  loki_data:
+  loki_config:
+  grafana_data:
+  grafana_provisioning:

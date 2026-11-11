@@ -1,0 +1,41 @@
+# gateway.yaml for the Dokploy deployment. Paste into Dokploy as a File Mount
+# with path "gateway.yaml" (Advanced -> Mounts). Full reference:
+# deploy/server/gateway.example.yaml and docs/03-drone-gateway.md.
+# ${VAR} is replaced from the dashboard container's environment.
+
+listen: ":8091"
+web_dir: /app/web
+recordings_dir: /recordings
+
+auth:
+  session_secret: ${SESSION_SECRET}
+  session_ttl: 12h
+  users:
+    # One entry per person. role: operator (can fly) or viewer (watch only).
+    # Create the hash with: drone-gateway hash-password (see README.md).
+    - username: admin
+      password_hash: "REPLACE-WITH-BCRYPT-HASH"
+      role: operator
+
+go2rtc:
+  public_url: https://cams.drone.starwatch.bb7fab11.sslip.io
+  api_url: http://127.0.0.1:1984     # same network namespace as go2rtc
+  rtsp_url: rtsp://127.0.0.1:8554
+  ingest_mode: mp4
+
+gcs_system_id: 255
+gcs_component_id: 190
+telemetry_hz: 5
+limits: { max_alt_m: 120, max_speed_m_s: 15, max_mission_items: 500 }
+allow_raw_commands: false
+
+drones:
+  - id: kotowali
+    name: Kotowali Thana SMP
+    mavlink: udp:100.111.237.109:14560        # star9's Tailscale IP, mavlink-router endpoint
+    stream_prefix: Kotowali-Thana-SMP          # go2rtc streams Kotowali-Thana-SMP_camera / _thermal
+  # Shahporan needs mavlink-router on its Pi first (docs/05-deployment.md §3):
+  # - id: shahporan
+  #   name: Shahporan Thana SMP
+  #   mavlink: udp:100.115.37.32:14560
+  #   stream_prefix: Shahporan-Thana-SMP

@@ -41,3 +41,20 @@ func TestDescribeMissionKeepsAltitudeFrame(t *testing.T) {
 		}
 	}
 }
+
+// A position read while the drone had no GPS fix is 0,0. Waypoints placed
+// next to it (or a Go to there) would send the drone towards the Atlantic.
+func TestRejectsTargetsNearNullIsland(t *testing.T) {
+	d := &Drone{gw: &Config{Limits: Limits{MaxAltM: 120, MaxSpeedMS: 15, MaxMissionItems: 500}}}
+	lat, lon, alt := 0.0003, 0.0003, 30.0
+	if _, err := d.BuildMission([]MissionItem{{Type: "waypoint", Lat: &lat, Lon: &lon, AltM: &alt}}); err == nil {
+		t.Fatal("a waypoint 40 m from 0,0 must be rejected")
+	}
+	sylLat, sylLon := 24.8949, 91.8687
+	if _, err := d.BuildMission([]MissionItem{{Type: "waypoint", Lat: &sylLat, Lon: &sylLon, AltM: &alt}}); err != nil {
+		t.Fatalf("a waypoint in Sylhet must be accepted: %v", err)
+	}
+	if err := d.Goto(t.Context(), 0.0002, -0.0004, 30, nil); err == nil {
+		t.Fatal("go to next to 0,0 must be refused")
+	}
+}

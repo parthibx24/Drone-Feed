@@ -18,7 +18,7 @@ export class MapTracker {
 
   constructor(element: HTMLElement, markerHtml: string, trailColor: string) {
     this.markerHtml = markerHtml;
-    this.map = L.map(element, { zoomControl: false }).setView([0, 0], 2);
+    this.map = L.map(element, { zoomControl: false }).setView([23.8, 90.4], 7); // Bangladesh until the drone has a GPS fix
     this.map.attributionControl.setPrefix(false);
     L.tileLayer(SATELLITE_TILES, { maxZoom: MAX_ZOOM, attribution: SATELLITE_ATTRIBUTION }).addTo(this.map);
     this.trail = L.polyline([], { color: trailColor, weight: 2 }).addTo(this.map);

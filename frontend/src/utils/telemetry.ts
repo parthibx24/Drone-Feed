@@ -13,6 +13,14 @@ const FIX_TYPES: Record<string, number> = {
   PPP: 8,
 };
 
+/**
+ * True when a position is a real fix. Without GPS, ArduPilot reports 0,0
+ * ("Null Island", open ocean), which must never be shown or used as a place.
+ */
+export function isRealPosition(p: { lat: number; lon: number } | null | undefined): p is { lat: number; lon: number } {
+  return !!p && Number.isFinite(p.lat) && Number.isFinite(p.lon) && (Math.abs(p.lat) > 0.1 || Math.abs(p.lon) > 0.1);
+}
+
 /** Maps the gateway snapshot onto the flat shape the dashboard widgets use. */
 export function toTelemetry(s: Snapshot | null): Telemetry {
   if (!s) return {};
@@ -29,8 +37,8 @@ export function toTelemetry(s: Snapshot | null): Telemetry {
     battery_pct: s.battery?.remaining_pct ?? null,
     gps_fix_type: s.gps ? (FIX_TYPES[s.gps.fix_type] ?? 0) : null,
     satellites: s.gps?.satellites ?? null,
-    lat: s.position?.lat ?? null,
-    lon: s.position?.lon ?? null,
+    lat: isRealPosition(s.position) ? s.position.lat : null,
+    lon: isRealPosition(s.position) ? s.position.lon : null,
     roll_deg: s.attitude?.roll_deg ?? null,
     pitch_deg: s.attitude?.pitch_deg ?? null,
     yaw_deg: s.attitude?.yaw_deg ?? null,

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { isRealPosition } from "../../utils/telemetry";
 import { DroneTopBar } from "../../components/layout/DroneTopBar";
 import { PageFrame } from "../../components/layout/PageFrame";
 import { MissionMap } from "../../components/mission/MissionMap";
@@ -89,7 +90,7 @@ export function MissionPage() {
   const activeIndex =
     !dirty && snapshot?.mission && snapshot.mission.current_seq > 0 ? snapshot.mission.current_seq - 1 : null;
   const home: [number, number] | null = snapshot?.home ? [snapshot.home.lat, snapshot.home.lon] : null;
-  const dronePos = snapshot?.position
+  const dronePos = isRealPosition(snapshot?.position)
     ? { lat: snapshot.position.lat, lon: snapshot.position.lon, heading: snapshot.position.heading_deg ?? 0 }
     : null;
 

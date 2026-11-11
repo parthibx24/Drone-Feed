@@ -97,8 +97,8 @@ func (d *Drone) RTL(ctx context.Context) error  { return d.SetMode(ctx, "RTL") }
 
 // Goto flies to a point (switching to GUIDED) using MAV_CMD_DO_REPOSITION.
 func (d *Drone) Goto(ctx context.Context, lat, lon, altM float64, speed *float64) error {
-	if lat < -90 || lat > 90 || lon < -180 || lon > 180 || (lat == 0 && lon == 0) {
-		return precondition("invalid lat/lon")
+	if lat < -90 || lat > 90 || lon < -180 || lon > 180 || nearNullIsland(lat, lon) {
+		return precondition("invalid lat/lon (0,0 means the position came from a drone without GPS)")
 	}
 	if altM <= 0 || altM > d.gw.Limits.MaxAltM {
 		return precondition("alt_m must be > 0 and <= %.0f", d.gw.Limits.MaxAltM)

@@ -68,6 +68,13 @@ func (e *MissionError) Error() string {
 	return "mission rejected: " + strings.TrimPrefix(e.Result.String(), "MAV_MISSION_")
 }
 
+// nearNullIsland reports coordinates within about 11 km of 0,0. That is open
+// ocean; such coordinates only come from a position read while the drone had
+// no GPS fix (ArduPilot then reports 0,0).
+func nearNullIsland(lat, lon float64) bool {
+	return math.Abs(lat) < 0.1 && math.Abs(lon) < 0.1
+}
+
 func (d *Drone) validPos(it MissionItem, needAlt bool) error {
 	if it.Lat == nil || it.Lon == nil {
 		return fmt.Errorf("%s: lat and lon are required", it.Type)
@@ -75,8 +82,8 @@ func (d *Drone) validPos(it MissionItem, needAlt bool) error {
 	if *it.Lat < -90 || *it.Lat > 90 || *it.Lon < -180 || *it.Lon > 180 {
 		return fmt.Errorf("%s: lat/lon out of range", it.Type)
 	}
-	if *it.Lat == 0 && *it.Lon == 0 {
-		return fmt.Errorf("%s: lat/lon 0,0 is almost certainly a mistake", it.Type)
+	if nearNullIsland(*it.Lat, *it.Lon) {
+		return fmt.Errorf("%s: lat/lon %.5f,%.5f is next to 0,0, the position a drone reports without GPS; place it on the map again", it.Type, *it.Lat, *it.Lon)
 	}
 	if needAlt {
 		return d.validAlt(it)

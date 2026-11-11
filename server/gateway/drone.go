@@ -71,6 +71,15 @@ type Drone struct {
 	cmdMu     sync.Mutex
 	missionMu sync.Mutex
 	paramSem  chan struct{} // one parameter transaction at a time; see lockParams
+
+	gim gimbalTracker // estimated camera pointing, for AI ground positions
+}
+
+// watchers is the number of open WebSocket clients (dashboards) for this drone.
+func (d *Drone) watchers() int {
+	d.listenMu.Lock()
+	defer d.listenMu.Unlock()
+	return len(d.listeners)
 }
 
 func newDrone(cfg DroneConfig, gw *Config, log *slog.Logger) (*Drone, error) {

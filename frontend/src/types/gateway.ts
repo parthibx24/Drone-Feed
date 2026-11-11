@@ -1,5 +1,7 @@
 /** Types for the drone-gateway API (see docs/04-api.md). */
 
+import type { AIEvent, AIFollowState, DetectionFrame } from "./ai";
+
 export type Role = "viewer" | "operator";
 
 export interface Me {
@@ -129,4 +131,7 @@ export type DroneEvent =
   | { type: "telemetry"; data: Snapshot }
   | { type: "statustext"; data: StatusText }
   | { type: "link"; data: { online: boolean } }
-  | { type: "mission_item_reached"; data: { seq: number } };
+  | { type: "mission_item_reached"; data: { seq: number } }
+  | { type: "detections"; data: DetectionFrame }
+  | { type: "ai_event"; data: AIEvent }
+  | { type: "ai_follow"; data: AIFollowState };

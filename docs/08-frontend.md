@@ -14,6 +14,7 @@ It's React 19 + TypeScript, built with Vite, and uses react-router for pages and
 | `/drones/:id/mission` | [`pages/Mission`](../frontend/src/pages/Mission/) | Mission planner |
 | `/drones/:id/params` | [`pages/Params`](../frontend/src/pages/Params/) | ArduPilot parameters |
 | `/drones/:id/messages` | [`pages/Messages`](../frontend/src/pages/Messages/) | Autopilot messages (pre-arm errors, GPS, EKF, failsafes) |
+| `/drones/:id/detections` | [`pages/Detections`](../frontend/src/pages/Detections/) | AI event log: filter by drone, type, label and time; snapshot, positions and a Google Maps link for each event |
 
 Every drone page shares one live WebSocket ([`context/DroneContext.tsx`](../frontend/src/context/DroneContext.tsx)), so switching tabs does not reconnect.
 
@@ -56,6 +57,19 @@ Every command reports the drone's real answer:
 | **Recordings tab** | The original "Recent Recordings" list (the full library is still under the folder button on the video) |
 | **Go to** on the map | Appears for operators while the drone is armed and online. Click Go to, click the map, confirm: the drone flies there at its current altitude (GUIDED). |
 | **Gimbal** | Hold-to-move now streams over the WebSocket at about 7 Hz. Releasing, closing the tab or losing the link stops the gimbal (the bridge's dead-man). |
+
+## AI
+
+Behaviour and the API contract are in [09-ai.md](09-ai.md). In the UI:
+
+| What | Where |
+|---|---|
+| **Boxes over the video** | [`components/ai/DetectionOverlay.tsx`](../frontend/src/components/ai/DetectionOverlay.tsx), drawn in the page over the video iframe and fitted to the letterboxed picture. Yellow = people, teal = vehicles, grey = other. Boxes vanish 1.5 s after the last frame. |
+| **Follow** | Operators click a box on the large feed; the followed box turns red and a "Following … · Stop" chip appears on the video ([`VideoStage.tsx`](../frontend/src/components/dashboard/VideoStage.tsx)). |
+| **AI tab** (sidebar) | [`components/ai/AIPanel.tsx`](../frontend/src/components/ai/AIPanel.tsx): on/off switch (operators), detector state, live people and vehicle counts per camera, follow status, **Analyze frame** (optional question; uses the camera shown large), and recent events. Clicking an event opens [`EventModal`](../frontend/src/components/ai/EventDetails.tsx). |
+| **Map** | Events from the last 30 minutes that have an estimated ground position are small dots on the dashboard map ([`MapTracker.setEvents`](../frontend/src/services/MapTracker.ts)). |
+
+Live detections, follow state and new events arrive over the drone's WebSocket and are kept in [`DroneContext`](../frontend/src/context/DroneContext.tsx); [`useAIStatus`](../frontend/src/hooks/useAIStatus.ts) polls the status every 4 s, and [`useAIEvents`](../frontend/src/hooks/useAIEvents.ts) merges stored and live events. A server without AI support shows "AI is not available on this server" in the AI tab, and the rest of the UI works as before.
 
 ## Mission planner
 

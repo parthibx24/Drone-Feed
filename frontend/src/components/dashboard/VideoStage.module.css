@@ -35,3 +35,40 @@
   width: 64px;
   height: 64px;
 }
+
+.followChip {
+  position: absolute;
+  top: 112px;
+  left: 50%;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 40px;
+  padding: 0 6px 0 14px;
+  transform: translateX(-50%);
+  border: 1px solid rgba(255, 59, 59, 0.6);
+  border-radius: var(--radius-panel);
+  background: rgba(9, 12, 8, 0.78);
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.followDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ff3b3b;
+}
+
+.followStop {
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--color-border-button);
+  border-radius: var(--radius-panel);
+  background: var(--color-tile);
+  font-size: 13px;
+  font-weight: 700;
+  touch-action: manipulation;
+}

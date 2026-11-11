@@ -107,6 +107,27 @@ It was replaced, not modified: the Python app (`app.py`, `recorder.py`, …) is 
 
 Once the new server is live (step 4), run `./drone/deploy/deploy.sh dronepi@<tailscale-ip> final`. This stops and disables the old drone-agent and moves gimbal-bridge to local UDP port 5000.
 
+## 7. AI detection (optional)
+
+What it does and how it works: [09-ai.md](09-ai.md). The detector is a second container next to `dashboard`, built from `ai/detector` in the same repository.
+
+1. Push the branch and note the commit hash.
+2. In Dokploy's **Environment** tab add:
+   - `AI_INGEST_TOKEN=<openssl rand -hex 24>` (required; shared by the gateway and the detector),
+   - `ANTHROPIC_API_KEY=...` (only for "Analyze frame"),
+   - `TELEGRAM_BOT_TOKEN=...` (only for Telegram alerts; create a bot with @BotFather, add it to the group, and use the group's chat id).
+3. In the compose file, add the `detector` service and the extra `dashboard` environment lines from [`compose.ai.example.yml`](../deploy/server/compose.ai.example.yml), and point **both** `dashboard` and `detector` at the new commit.
+4. In the `gateway.yaml` file mount, add an `ai:` block. A commented example is at the end of [`gateway.example.yaml`](../deploy/server/gateway.example.yaml). Start with `enabled`, `ingest_token`, and the features you want.
+5. Deploy. Check:
+   - `drone-dashboard` logs: `AI enabled` with the features you configured.
+   - `drone-detector` logs: `loaded visible model` and `loaded thermal model`. When someone opens a drone's dashboard: `starting <drone>/<stream>`, then `stream opened`. Every minute it logs frames processed and inference time per camera.
+   - The dashboard's **AI** tab shows **Detecting**, with frame rate and inference time per camera.
+6. Watch the server's CPU for a while (`docker stats`). The detector is capped at one CPU. If the AI tab shows well under the configured frame rate, lower `ai.fps`. If there is headroom, try `TILES=2`.
+
+**Mobile data.** The detector only pulls video while a drone is armed or someone watches its dashboard (`run_when: auto`), and then it reads the copy go2rtc already pulls for the viewers. `run_when: always` keeps both drone streams flowing over 4G all the time (about 650 MB per hour per drone).
+
+**Licences.** Read the licence note in [09-ai.md](09-ai.md#overview) before using this commercially.
+
 ## Rollback
 
 Run `sudo /opt/drone-stack/rollback.sh` on the Pi. It stops the new services and re-enables MAVProxy and the old drone-agent with their original unit files, which install.sh never modifies.

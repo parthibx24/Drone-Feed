@@ -7,6 +7,13 @@ const MAX_ZOOM = 19;
 const FOLLOW_ZOOM = 17;
 const MAX_TRAIL_POINTS = 250;
 
+export interface EventMarker {
+  lat: number;
+  lon: number;
+  color: string;
+  tooltip: string;
+}
+
 /** Live drone position on a satellite map, with a rotating marker and a flight trail. */
 export class MapTracker {
   private readonly map: L.Map;
@@ -15,6 +22,7 @@ export class MapTracker {
   private readonly trailPoints: L.LatLngTuple[] = [];
   private marker: L.Marker | null = null;
   private target: L.CircleMarker | null = null;
+  private readonly events: L.LayerGroup;
 
   constructor(element: HTMLElement, markerHtml: string, trailColor: string) {
     this.markerHtml = markerHtml;
@@ -22,6 +30,7 @@ export class MapTracker {
     this.map.attributionControl.setPrefix(false);
     L.tileLayer(SATELLITE_TILES, { maxZoom: MAX_ZOOM, attribution: SATELLITE_ATTRIBUTION }).addTo(this.map);
     this.trail = L.polyline([], { color: trailColor, weight: 2 }).addTo(this.map);
+    this.events = L.layerGroup().addTo(this.map);
   }
 
   update(lat: number | null | undefined, lon: number | null | undefined, heading: number): void {
@@ -54,6 +63,22 @@ export class MapTracker {
     this.target = position
       ? L.circleMarker(position, { radius: 9, color: "#fbbf24", weight: 3, fillOpacity: 0.15 }).addTo(this.map)
       : null;
+  }
+
+  /** Replaces the AI event markers (estimated ground positions). */
+  setEvents(markers: EventMarker[]): void {
+    this.events.clearLayers();
+    for (const m of markers) {
+      L.circleMarker([m.lat, m.lon], {
+        radius: 6,
+        color: "#090c08",
+        weight: 2,
+        fillColor: m.color,
+        fillOpacity: 0.95,
+      })
+        .bindTooltip(m.tooltip, { direction: "top", offset: [0, -6] })
+        .addTo(this.events);
+    }
   }
 
   destroy(): void {

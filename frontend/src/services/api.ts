@@ -15,7 +15,13 @@ import type {
   RecordingStatusResponse,
   RecordingStopResponse,
 } from "../types/recording";
+import type { AIEvent, AIEventQuery, AIStatus, AnalyzeResponse } from "../types/ai";
 import { request } from "./http";
+
+function query(params: object): string {
+  const entries = Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== "");
+  return entries.length ? `?${entries.map(([k, v]) => `${enc(k)}=${enc(String(v))}`).join("&")}` : "";
+}
 
 const enc = encodeURIComponent;
 const drone = (id: string, path = "") => `/api/v1/drones/${enc(id)}${path}`;
@@ -76,4 +82,13 @@ export const api = {
     request<Recording[]>(`/api/v1/recordings?sort_by=${enc(sortBy)}&order=${enc(order)}`),
   deleteRecording: (relativePath: string) =>
     request<unknown>(`/api/v1/recordings/${relativePath.split("/").map(enc).join("/")}`, { method: "DELETE" }),
+
+  // --- AI (docs/09-ai.md)
+  aiStatus: (id: string) => request<AIStatus>(drone(id, "/ai")),
+  aiSetEnabled: (id: string, enabled: boolean) => post(drone(id, "/ai"), { enabled }),
+  aiAnalyze: (id: string, stream?: string, prompt?: string) =>
+    post<AnalyzeResponse>(drone(id, "/ai/analyze"), { stream: stream || undefined, prompt: prompt || undefined }),
+  aiFollow: (id: string, stream: string, trackId: number) => post(drone(id, "/ai/follow"), { stream, track_id: trackId }),
+  aiStopFollow: (id: string) => request<{ ok: boolean }>(drone(id, "/ai/follow"), { method: "DELETE" }),
+  aiEvents: (q: AIEventQuery) => request<{ events: AIEvent[] }>(`/api/v1/ai/events${query(q)}`),
 };

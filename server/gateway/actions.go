@@ -191,12 +191,18 @@ func (d *Drone) gimbalFlags() common.GIMBAL_MANAGER_FLAGS {
 func (d *Drone) GimbalAttitude(ctx context.Context, pitch, yaw float32) error {
 	_, err := d.CommandLong(ctx, mav.CompGimbal, common.MAV_CMD_DO_GIMBAL_MANAGER_PITCHYAW,
 		[7]float32{pitch, yaw, mav.NaN, mav.NaN, float32(d.gimbalFlags()), 0, float32(mav.CompGimbal)})
+	if err == nil {
+		d.gim.setAbsolute(pitch, yaw)
+	}
 	return err
 }
 
 func (d *Drone) GimbalCenter(ctx context.Context) error {
 	_, err := d.CommandLong(ctx, mav.CompGimbal, common.MAV_CMD_DO_GIMBAL_MANAGER_PITCHYAW,
 		[7]float32{mav.NaN, mav.NaN, mav.NaN, mav.NaN, float32(common.GIMBAL_MANAGER_FLAGS_NEUTRAL), 0, float32(mav.CompGimbal)})
+	if err == nil {
+		d.gim.setAbsolute(0, 0)
+	}
 	return err
 }
 
@@ -227,11 +233,15 @@ func (d *Drone) GimbalRate(pitchRate, yawRate float64) error {
 	lim := 30.0
 	pitchRate = math.Max(-lim, math.Min(lim, pitchRate))
 	yawRate = math.Max(-lim, math.Min(lim, yawRate))
-	return d.write(&common.MessageGimbalManagerSetPitchyaw{
+	err = d.write(&common.MessageGimbalManagerSetPitchyaw{
 		TargetSystem: sys, TargetComponent: mav.CompGimbal, Flags: d.gimbalFlags(),
 		GimbalDeviceId: mav.CompGimbal, Pitch: mav.NaN, Yaw: mav.NaN,
 		PitchRate: float32(pitchRate), YawRate: float32(yawRate),
 	})
+	if err == nil {
+		d.gim.setRate(pitchRate, yawRate)
+	}
+	return err
 }
 
 // ---------------------------------------------------------------- camera

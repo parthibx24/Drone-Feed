@@ -34,6 +34,7 @@ type Gateway struct {
 	version string
 	auth    *authState
 	rec     *recorder.Manager
+	ai      *aiHub // nil unless ai.enabled
 }
 
 // New creates links for every configured drone.
@@ -60,6 +61,13 @@ func New(cfg *Config, log *slog.Logger, version string) (*Gateway, error) {
 		return nil, fmt.Errorf("recordings_dir: %w", err)
 	}
 	g.rec = rec
+	if cfg.AI.Enabled {
+		if g.ai, err = newAIHub(g); err != nil {
+			return nil, fmt.Errorf("ai: %w", err)
+		}
+		log.Info("AI enabled", "data_dir", cfg.AI.DataDir, "run_when", cfg.AI.RunWhen,
+			"alerts", g.ai.alerts != nil, "analyze", g.ai.vision != nil, "auto_record", len(cfg.AI.AutoRecord.Labels) > 0)
+	}
 	return g, nil
 }
 
@@ -85,6 +93,9 @@ func (g *Gateway) Run(ctx context.Context) error {
 func (g *Gateway) StartLinks(ctx context.Context) {
 	for _, d := range g.drones {
 		go d.run(ctx)
+	}
+	if g.ai != nil {
+		go g.ai.run(ctx)
 	}
 }
 
@@ -333,6 +344,7 @@ func (g *Gateway) Handler() http.Handler {
 	}))
 
 	g.mediaRoutes(mux)
+	g.aiRoutes(mux)
 
 	// --- read
 	mux.HandleFunc("GET /api/v1/drones/{id}", g.route(V, func(w http.ResponseWriter, r *http.Request, d *Drone) {
@@ -540,6 +552,7 @@ func (g *Gateway) Handler() http.Handler {
 			writeErr(w, http.StatusBadRequest, "pitch_deg and/or yaw_deg required")
 			return
 		}
+		g.operatorGimbal(d)
 		ctx, cancel := cmdCtx(r)
 		defer cancel()
 		writeResult(w, d.GimbalAttitude(ctx, nanIfNil(b.PitchDeg), nanIfNil(b.YawDeg)), nil)
@@ -552,9 +565,15 @@ func (g *Gateway) Handler() http.Handler {
 		if !decode(w, r, &b) {
 			return
 		}
+		if b.PitchDegS != 0 || b.YawDegS != 0 {
+			g.operatorGimbal(d)
+		}
 		writeResult(w, d.GimbalRate(b.PitchDegS, b.YawDegS), map[string]any{"acknowledged": false})
 	}))
-	mux.HandleFunc("POST /api/v1/drones/{id}/gimbal/center", g.route(O, simple((*Drone).GimbalCenter)))
+	mux.HandleFunc("POST /api/v1/drones/{id}/gimbal/center", g.route(O, simple(func(d *Drone, ctx context.Context) error {
+		g.operatorGimbal(d)
+		return d.GimbalCenter(ctx)
+	})))
 	mux.HandleFunc("POST /api/v1/drones/{id}/gimbal/mode", g.route(O, func(w http.ResponseWriter, r *http.Request, d *Drone) {
 		var b struct {
 			Mode string `json:"mode"`

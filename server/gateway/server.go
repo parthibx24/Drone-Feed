@@ -609,6 +609,9 @@ func (g *Gateway) Handler() http.Handler {
 		writeResult(w, d.CameraSource(ctx, b.Source), nil)
 	}))
 
+	// --- speaker (not MAVLink: proxied to the drone's speaker API, if any)
+	g.speakerRoutes(mux)
+
 	// --- raw escape hatch (disabled unless allow_raw_commands: true)
 	mux.HandleFunc("POST /api/v1/drones/{id}/command", g.route(O, func(w http.ResponseWriter, r *http.Request, d *Drone) {
 		if !g.cfg.AllowRawCommands {

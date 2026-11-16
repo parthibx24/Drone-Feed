@@ -88,6 +88,18 @@ type DroneConfig struct {
 	// StreamPrefix: go2rtc streams named "<prefix>_*" belong to this drone
 	// (e.g. kotowali_camera). Defaults to the id. Also names its recordings.
 	StreamPrefix string `yaml:"stream_prefix"`
+	// Speaker, when set, is a loudspeaker on the drone that is not reached
+	// over MAVLink: the gateway proxies the dashboard's speaker controls to
+	// this HTTP API (dji-bridge's, for the Mavic 3T). Nil = no speaker.
+	Speaker *SpeakerConfig `yaml:"speaker"`
+}
+
+// SpeakerConfig locates a drone's speaker API.
+type SpeakerConfig struct {
+	// API is the base URL, e.g. http://dji-bridge:8090/api/v1/aircraft/<serial>/speaker.
+	API string `yaml:"api"`
+	// Token is sent as "Authorization: Bearer <token>" (use ${VAR}).
+	Token string `yaml:"token"`
 }
 
 // DefaultStreamRates are requested from the autopilot on connect (Hz).
@@ -238,6 +250,17 @@ func (c *Config) Normalize() error {
 		}
 		if d.StreamPrefix == "" {
 			c.Drones[i].StreamPrefix = d.ID
+		}
+		if sp := d.Speaker; sp != nil {
+			sp.API = strings.TrimRight(strings.TrimSpace(sp.API), "/")
+			sp.Token = strings.TrimSpace(sp.Token)
+			u, err := url.Parse(sp.API)
+			if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+				return fmt.Errorf("drones[%d] %s: speaker.api must be an http(s) URL", i, d.ID)
+			}
+			if sp.Token == "" {
+				return fmt.Errorf("drones[%d] %s: speaker.token is required (set its environment variable)", i, d.ID)
+			}
 		}
 	}
 	return nil

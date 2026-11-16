@@ -7,6 +7,8 @@ import type {
   MissionItem,
   Param,
   Snapshot,
+  SpeakerInfo,
+  SpeakerLang,
   StatusText,
 } from "../types/gateway";
 import type {
@@ -68,6 +70,13 @@ export const api = {
     post(drone(id, "/camera/zoom"), { type, value }),
   photo: (id: string) => post(drone(id, "/camera/photo")),
   cameraSource: (id: string, source: CameraSource) => post(drone(id, "/camera/source"), { source }),
+
+  // --- speaker (drones that have one; 404 otherwise)
+  speaker: (id: string) => request<SpeakerInfo>(drone(id, "/speaker")),
+  speakerSay: (id: string, text: string, lang: SpeakerLang, loop: boolean) =>
+    post(drone(id, "/speaker/say"), { text, lang, loop }),
+  speakerStop: (id: string) => post(drone(id, "/speaker/stop")),
+  speakerVolume: (id: string, volume: number) => post(drone(id, "/speaker/volume"), { volume }),
   cameras: (id: string) => request<CamerasResponse>(drone(id, "/cameras")),
 
   // --- recordings

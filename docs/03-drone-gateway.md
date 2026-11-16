@@ -107,7 +107,9 @@ ArduPilot applies these rates to the serial port the Pi uses, so every consumer 
 | `limits.max_speed_m_s` | `15` | Goto, speed and mission speed cap |
 | `limits.max_mission_items` | `500` | |
 | `stream_rates` | table above | Message name → Hz |
-| `drones[]` | (required) | `id`, `name`, `mavlink` (endpoint), optional `system_id`, `stream_prefix` (go2rtc `<prefix>_*` streams, default the id) |
+| `drones[]` | (required) | `id`, `name`, `mavlink` (endpoint), optional `system_id`, `stream_prefix` (go2rtc `<prefix>_*` streams, default the id), optional `speaker` (below) |
+| `drones[].speaker.api` | none | A loudspeaker MAVLink can't reach: the base URL of its speaker API, which the gateway proxies the dashboard's Speaker tab to. For the Mavic 3T: `http://dji-bridge:8090/api/v1/aircraft/<SERIAL>/speaker`. No `speaker` = no Speaker tab. |
+| `drones[].speaker.token` | (required with `api`) | Sent upstream as `Authorization: Bearer`; use `${VAR}` (dji-bridge's `api.token`). Browsers never see it. |
 
 Endpoint syntax for `drones[].mavlink`:
 

@@ -9,6 +9,7 @@ import { StatsPanel } from "../../components/dashboard/StatsPanel";
 import { ThermalFilter } from "../../components/dashboard/ThermalFilter";
 import { VideoStage } from "../../components/dashboard/VideoStage";
 import { FlightPanel } from "../../components/flight/FlightPanel";
+import { SpeakerPanel } from "../../components/speaker/SpeakerPanel";
 import { DroneTopBar } from "../../components/layout/DroneTopBar";
 import { PageFrame } from "../../components/layout/PageFrame";
 import { useConfirm } from "../../components/ui/ConfirmDialog";
@@ -20,6 +21,7 @@ import { useCameras } from "../../hooks/useCameras";
 import { useGimbal } from "../../hooks/useGimbal";
 import { useKeyboardShortcuts } from "../../hooks/useKeyboardShortcuts";
 import { useRecording } from "../../hooks/useRecording";
+import { useSpeaker } from "../../hooks/useSpeaker";
 import { useToast } from "../../hooks/useToast";
 import { api } from "../../services/api";
 import { errorText } from "../../services/http";
@@ -30,7 +32,9 @@ import { toTelemetry } from "../../utils/telemetry";
 import type { CameraSource } from "../../types/gateway";
 import styles from "./Dashboard.module.css";
 
-type SidebarTab = "flight" | "recordings";
+type SidebarTab = "flight" | "recordings" | "speaker";
+
+const TAB_LABELS: Record<SidebarTab, string> = { flight: "Flight", recordings: "Recordings", speaker: "Speaker" };
 
 export function Dashboard() {
   const { message, notify } = useToast();
@@ -48,6 +52,9 @@ export function Dashboard() {
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [previewItem, setPreviewItem] = useState<Recording | null>(null);
   const [tab, setTab] = useState<SidebarTab>("flight");
+  const speaker = useSpeaker(id, tab === "speaker");
+  const tabs: SidebarTab[] = speaker.available ? ["flight", "recordings", "speaker"] : ["flight", "recordings"];
+  const shownTab: SidebarTab = tabs.includes(tab) ? tab : "flight";
   const [gotoActive, setGotoActive] = useState(false);
   const [gotoTarget, setGotoTarget] = useState<[number, number] | null>(null);
 
@@ -126,23 +133,25 @@ export function Dashboard() {
         <StatsPanel stats={buildStats(telemetry, gimbal.zoom)} />
         <div className={styles.lower}>
           <div className={styles.tabs} role="tablist">
-            {(["flight", "recordings"] as const).map((t) => (
+            {tabs.map((t) => (
               <button
                 key={t}
                 type="button"
                 role="tab"
-                aria-selected={tab === t}
-                className={`${styles.tab} ${tab === t ? styles.tabActive : ""}`}
+                aria-selected={shownTab === t}
+                className={`${styles.tab} ${shownTab === t ? styles.tabActive : ""}`}
                 onClick={() => setTab(t)}
               >
-                {t === "flight" ? "Flight" : "Recordings"}
+                {TAB_LABELS[t]}
               </button>
             ))}
           </div>
-          {tab === "flight" ? (
+          {shownTab === "flight" ? (
             <div className={styles.flight}>
               <FlightPanel notify={notify} confirm={confirm} />
             </div>
+          ) : shownTab === "speaker" ? (
+            <SpeakerPanel droneId={id} speaker={speaker} canOperate={canOperate} notify={notify} />
           ) : (
             <RecentRecordings
               listVersion={recording.listVersion}

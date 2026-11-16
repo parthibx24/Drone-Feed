@@ -24,6 +24,7 @@ Every drone page shares one live WebSocket ([`context/DroneContext.tsx`](../fron
 | See video, telemetry, map, mission, parameters, messages, recordings | ✓ | ✓ |
 | Gimbal, zoom, record | disabled | ✓ |
 | Flight panel, map Go to | "View only" notice | ✓ |
+| Speaker: say, loop, stop, volume, talk | status only | ✓ |
 | Edit, write or start missions; write parameters | read-only | ✓ |
 
 The UI only hides or disables controls; the **server enforces roles** on every request.
@@ -54,6 +55,7 @@ Every command reports the drone's real answer:
 |---|---|
 | **Flight panel** (sidebar, "Flight" tab) | Mode selector plus Set mode, Arm and Disarm, takeoff altitude plus Take off, then Land, RTL, Pause and Resume |
 | **Recordings tab** | The original "Recent Recordings" list (the full library is still under the folder button on the video) |
+| **Speaker tab** (drones with a speaker only) | Type a message in English or বাংলা and **Say** it once or **Loop** it; **Stop**; volume slider; **Hold to talk** (or hold **T**) streams the computer's microphone live, with a level meter. The status line says why it can't play (no speaker, pilot app offline, StarWatch control not granted). The microphone needs the dashboard over HTTPS. Code: [`components/speaker`](../frontend/src/components/speaker/), [`services/MicStreamer.ts`](../frontend/src/services/MicStreamer.ts) (AudioWorklet resampling to 16 kHz). |
 | **Go to** on the map | Appears for operators while the drone is armed and online. Click Go to, click the map, confirm: the drone flies there at its current altitude (GUIDED). |
 | **Gimbal** | Hold-to-move now streams over the WebSocket at about 7 Hz. Releasing, closing the tab or losing the link stops the gimbal (the bridge's dead-man). |
 

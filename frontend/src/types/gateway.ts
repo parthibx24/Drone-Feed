@@ -134,3 +134,17 @@ export type DroneEvent =
 
 /** Lenses a switchable camera can show. */
 export type CameraSource = "wide" | "zoom" | "thermal";
+
+/** Languages the speaker can say typed text in. */
+export type SpeakerLang = "en" | "bn";
+
+/** The drone's loudspeaker (GET /drones/{id}/speaker). */
+export interface SpeakerInfo {
+  present: boolean;
+  status: "idle" | "playing" | "transmitting" | "error" | "unknown";
+  volume: number | null;
+  languages: SpeakerLang[];
+  /** False while nothing can be played (pilot app offline, StarWatch control not granted, no speaker). */
+  can_play: boolean;
+}
+

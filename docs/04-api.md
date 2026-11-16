@@ -156,6 +156,18 @@ Reading a mission returns the frame it was written with. A mission from QGC or M
 | POST | `/drones/{id}/camera/zoom` | O | `{"type": "step", "value": 1}`, `{"type": "continuous", "value": -1}`, or `{"type": "range", "value": 50}` |
 | POST | `/drones/{id}/camera/source` | O | `{"source": "wide"}`, `"zoom"` or `"thermal"`: switches the lens the video shows (`MAV_CMD_SET_CAMERA_SOURCE`, param2 4 / 1 / 2). Only for cameras that report `camera.source`; a fixed camera answers 409 UNSUPPORTED. |
 
+## Speaker
+
+For drones with a `speaker` in the config; others answer 404 `{"error": "no speaker"}`. Not MAVLink: the gateway checks the login and role and proxies to the drone's speaker API (dji-bridge for the Mavic 3T), passing its status codes and JSON through. Unreachable speaker service: 502; no answer: 504.
+
+| Method | Path | Role | Notes |
+|---|---|---|---|
+| GET | `/drones/{id}/speaker` | V | `{present, status: idle\|playing\|transmitting\|error\|unknown, volume, languages, can_play}` |
+| POST | `/drones/{id}/speaker/say` | O | `{"text": "...", "lang": "en"\|"bn", "loop": false}`. Text up to 500 characters. Spoken once, or repeated until stop. 409 `{"error": reason, "result": "refused"\|"failed"}` when the pilot hasn't allowed StarWatch control or the speaker failed. |
+| POST | `/drones/{id}/speaker/stop` | O | Stops a message or loop |
+| POST | `/drones/{id}/speaker/volume` | O | `{"volume": 0..100}` |
+| GET | `/drones/{id}/speaker/live` | O | WebSocket, push-to-talk. Send binary PCM (signed 16-bit little-endian, 16 kHz, mono) in real time, then `{"type": "end"}`; receive one `{"type": "result", "outcome": "done"\|"refused"\|"failed", "reason"}`. Frames up to 64 kB, sessions up to 5 minutes. |
+
 ## Video and recordings
 
 | Method | Path | Role | Notes |

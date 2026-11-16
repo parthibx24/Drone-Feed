@@ -1,0 +1,144 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px 24px 24px;
+  overflow-y: auto;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.grow {
+  flex: 1;
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 1px solid var(--color-border-card);
+  border-radius: var(--radius-card);
+  background: var(--color-card);
+  color: var(--color-text);
+  font-size: 14px;
+}
+
+.warn {
+  color: var(--color-warning);
+}
+
+.dot {
+  flex-shrink: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--color-text-muted);
+}
+
+.live {
+  background: var(--color-record);
+  box-shadow: 0 0 0 4px rgba(255, 64, 64, 0.2);
+}
+
+.text {
+  width: 100%;
+  min-height: 104px;
+  padding: 12px 14px;
+  resize: vertical;
+  border: 1px solid var(--color-border-control);
+  border-radius: var(--radius-button);
+  background: var(--color-page);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 16px;
+  line-height: 1.4;
+  outline: none;
+}
+
+.text:focus {
+  border-color: var(--color-accent);
+}
+
+.text:disabled {
+  opacity: 0.5;
+}
+
+.volume {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--color-text-muted);
+  font-size: 14px;
+}
+
+.volume input {
+  flex: 1;
+  accent-color: var(--color-accent);
+}
+
+.value {
+  width: 44px;
+  color: var(--color-text);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.talk {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 18px 16px 14px;
+  border: 1px solid var(--color-border-button);
+  border-radius: var(--radius-panel);
+  background: var(--color-tile);
+  color: var(--color-text);
+  touch-action: none;
+  user-select: none;
+}
+
+.talk:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.talking {
+  border-color: var(--color-record);
+  background: var(--color-card);
+}
+
+.talkLabel {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.talkHint {
+  color: var(--color-text-muted);
+  font-size: 13px;
+}
+
+.meter {
+  width: 100%;
+  height: 6px;
+  margin-top: 4px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: var(--color-track);
+}
+
+.meter span {
+  display: block;
+  height: 100%;
+  background: var(--color-success);
+  transition: width 60ms linear;
+}
+
+.problem {
+  color: var(--color-warning);
+  font-size: 14px;
+}

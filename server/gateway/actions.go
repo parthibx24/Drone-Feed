@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"strings"
 	"time"
 
 	"github.com/bluenviron/gomavlib/v3/pkg/dialects/common"
@@ -260,6 +261,38 @@ func (d *Drone) Video(ctx context.Context, start bool) error {
 		cmd = common.MAV_CMD_VIDEO_START_CAPTURE
 	}
 	_, err := d.CommandLong(ctx, mav.CompCamera, cmd, [7]float32{})
+	return err
+}
+
+// Camera sources, as MAV_CMD_SET_CAMERA_SOURCE param2 (CAMERA_SOURCE).
+// RGB_WIDEANGLE (4) is in upstream MAVLink but not yet in gomavlib.
+const cameraSourceRGBWideAngle = 4
+
+var cameraSources = map[string]common.CAMERA_SOURCE{
+	"wide":    cameraSourceRGBWideAngle,
+	"zoom":    common.CAMERA_SOURCE_RGB,
+	"thermal": common.CAMERA_SOURCE_IR,
+}
+
+// lensOf reads the lens from a VIDEO_STREAM_INFORMATION name; "" if it
+// isn't one of the switchable lenses.
+func lensOf(name string) string {
+	n := strings.ToLower(strings.TrimSpace(strings.TrimRight(name, "\x00")))
+	if _, ok := cameraSources[n]; ok {
+		return n
+	}
+	return ""
+}
+
+// CameraSource switches the lens the video shows: "wide", "zoom" or
+// "thermal" (MAV_CMD_SET_CAMERA_SOURCE). Cameras with one fixed view
+// answer UNSUPPORTED.
+func (d *Drone) CameraSource(ctx context.Context, source string) error {
+	src, ok := cameraSources[source]
+	if !ok {
+		return precondition("source must be wide, zoom or thermal")
+	}
+	_, err := d.CommandLong(ctx, mav.CompCamera, common.MAV_CMD_SET_CAMERA_SOURCE, [7]float32{0, float32(src)})
 	return err
 }
 

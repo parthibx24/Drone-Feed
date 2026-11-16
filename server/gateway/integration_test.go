@@ -375,6 +375,27 @@ func TestEndToEnd(t *testing.T) {
 		s.c12.waitFor(t, "#TPUD2wDZM0A65", time.Second)
 	})
 
+	t.Run("camera source: validated, and unsupported by a fixed camera", func(t *testing.T) {
+		c, b := s.do("POST", "/api/v1/drones/sim/camera/source", opToken, map[string]any{"source": "x-ray"})
+		expect(t, c, b, 422)
+		c, b = s.do("POST", "/api/v1/drones/sim/camera/source", viewerToken, map[string]any{"source": "thermal"})
+		expect(t, c, b, 403)
+		// star9's camera (the C12 through the gimbal bridge) has one view:
+		// the command must be refused, never sent on as something else.
+		s.c12.reset()
+		c, b = s.do("POST", "/api/v1/drones/sim/camera/source", opToken, map[string]any{"source": "thermal"})
+		if c == 200 {
+			t.Fatalf("fixed camera accepted a source switch: %v", b)
+		}
+		if p := s.c12.packets(); len(p) != 0 {
+			t.Fatalf("source switch reached the C12: %v", p)
+		}
+		tel := s.waitTelemetry(func(m map[string]any) bool { return m["camera"] != nil }, 2*time.Second)
+		if src := tel["camera"].(map[string]any)["source"]; src != nil {
+			t.Fatalf("fixed camera reports a source: %v", src)
+		}
+	})
+
 	t.Run("gimbal attitude, center and lock", func(t *testing.T) {
 		s.c12.reset()
 		c, b := s.do("POST", "/api/v1/drones/sim/gimbal/attitude", opToken, map[string]any{"pitch_deg": -45})

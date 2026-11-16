@@ -56,6 +56,7 @@ type Drone struct {
 	target     uint8
 	lastHB     time.Time
 	camSeen    time.Time
+	sourceSeen time.Time // last VIDEO_STREAM_INFORMATION naming a lens
 	gimbalSeen time.Time
 	statusText []StatusText
 	params     map[string]Param
@@ -171,6 +172,11 @@ func (d *Drone) Snapshot() Telemetry {
 	if st.Camera != nil {
 		c := *st.Camera
 		c.Present = time.Since(d.camSeen) < peripheralTimout
+		// A lens not reported lately (e.g. the 3T went back to Pilot 2, which
+		// can't switch) is no longer switchable: the dashboard hides its selector.
+		if time.Since(d.sourceSeen) >= peripheralTimout {
+			c.Source = nil
+		}
 		st.Camera = &c
 	}
 	if st.Gimbal != nil {
@@ -295,6 +301,18 @@ func (d *Drone) handleFrame(fr *gomavlib.EventFrame) {
 		g.YawLock = gs.Flags&common.GIMBAL_MANAGER_FLAGS_YAW_LOCK != 0
 		d.st.Gimbal = g
 		d.mu.Unlock()
+	} else if vs, ok := fr.Message().(*common.MessageVideoStreamInformation); ok {
+		if src := lensOf(vs.Name); src != "" {
+			d.mu.Lock()
+			c := &CameraState{}
+			if d.st.Camera != nil {
+				*c = *d.st.Camera
+			}
+			c.Source = &src
+			d.st.Camera = c
+			d.sourceSeen = time.Now()
+			d.mu.Unlock()
+		}
 	}
 	d.deliver(fr)
 }
@@ -330,7 +348,12 @@ func (d *Drone) handleHeartbeat(sys, comp uint8, hb *common.MessageHeartbeat) {
 		if d.st.Camera == nil {
 			d.log.Info("camera component found", "compid", comp)
 		}
-		d.st.Camera = &Peripheral{Present: true, LastSeen: now}
+		c := &CameraState{}
+		if d.st.Camera != nil {
+			*c = *d.st.Camera
+		}
+		c.Present, c.LastSeen = true, now
+		d.st.Camera = c
 
 	case sys == d.target && hb.Type == common.MAV_TYPE_GIMBAL:
 		d.gimbalSeen = now

@@ -597,6 +597,18 @@ func (g *Gateway) Handler() http.Handler {
 		writeResult(w, d.Zoom(ctx, b.Type, b.Value), nil)
 	}))
 
+	mux.HandleFunc("POST /api/v1/drones/{id}/camera/source", g.route(O, func(w http.ResponseWriter, r *http.Request, d *Drone) {
+		var b struct {
+			Source string `json:"source"`
+		}
+		if !decode(w, r, &b) {
+			return
+		}
+		ctx, cancel := cmdCtx(r)
+		defer cancel()
+		writeResult(w, d.CameraSource(ctx, b.Source), nil)
+	}))
+
 	// --- raw escape hatch (disabled unless allow_raw_commands: true)
 	mux.HandleFunc("POST /api/v1/drones/{id}/command", g.route(O, func(w http.ResponseWriter, r *http.Request, d *Drone) {
 		if !g.cfg.AllowRawCommands {

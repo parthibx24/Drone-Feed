@@ -30,7 +30,7 @@ type Telemetry struct {
 	Home     *Home         `json:"home"`
 	Mission  *MissionState `json:"mission"`
 	EKF      *EKF          `json:"ekf"`
-	Camera   *Peripheral   `json:"camera"`
+	Camera   *CameraState  `json:"camera"`
 	Gimbal   *GimbalState  `json:"gimbal"`
 
 	UpdatedAt time.Time `json:"updated_at"`
@@ -90,9 +90,14 @@ type EKF struct {
 	Healthy bool   `json:"healthy"`
 }
 
-type Peripheral struct {
+// CameraState is the camera component. Source is the lens the video shows
+// ("wide", "zoom" or "thermal") on cameras that report it (VIDEO_STREAM_INFORMATION
+// named after the lens, as dji-bridge sends for the Mavic 3T); nil otherwise.
+// A non-nil Source means the dashboard may offer to switch it.
+type CameraState struct {
 	Present  bool      `json:"present"`
 	LastSeen time.Time `json:"last_seen"`
+	Source   *string   `json:"source"`
 }
 
 type GimbalState struct {

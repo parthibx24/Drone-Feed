@@ -63,11 +63,13 @@ Fields are `null` until the matching MAVLink message has been received.
   "home": {"lat": 23.81, "lon": 90.41, "alt_msl_m": 10},
   "mission": {"current_seq": 2, "total": 7, "state": "ACTIVE"},
   "ekf": {"flags": 831, "healthy": true},
-  "camera": {"present": true, "last_seen": "..."},
+  "camera": {"present": true, "last_seen": "...", "source": null},
   "gimbal": {"present": true, "yaw_lock": false, "last_seen": "..."},
   "updated_at": "..."
 }
 ```
+
+`camera.source` is the lens the video shows (`"wide"`, `"zoom"` or `"thermal"`) on cameras that can switch it, such as the Mavic 3T through dji-bridge, which names its `VIDEO_STREAM_INFORMATION` after the lens. It is `null` for cameras with one view (star9), and goes back to `null` 5 s after the last report. The dashboard shows a Wide / Zoom / Thermal selector only while it is set.
 
 ### WebSocket messages
 
@@ -152,6 +154,7 @@ Reading a mission returns the frame it was written with. A mission from QGC or M
 | POST | `/drones/{id}/camera/photo/stop` | O | none |
 | POST | `/drones/{id}/camera/video/start` / `stop` | O | none |
 | POST | `/drones/{id}/camera/zoom` | O | `{"type": "step", "value": 1}`, `{"type": "continuous", "value": -1}`, or `{"type": "range", "value": 50}` |
+| POST | `/drones/{id}/camera/source` | O | `{"source": "wide"}`, `"zoom"` or `"thermal"`: switches the lens the video shows (`MAV_CMD_SET_CAMERA_SOURCE`, param2 4 / 1 / 2). Only for cameras that report `camera.source`; a fixed camera answers 409 UNSUPPORTED. |
 
 ## Video and recordings
 

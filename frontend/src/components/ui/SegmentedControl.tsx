@@ -6,9 +6,10 @@ interface SegmentedControlProps {
   value: string;
   onChange: (value: string) => void;
   ariaLabel: string;
+  disabled?: boolean;
 }
 
-export function SegmentedControl({ options, value, onChange, ariaLabel }: SegmentedControlProps) {
+export function SegmentedControl({ options, value, onChange, ariaLabel, disabled = false }: SegmentedControlProps) {
   return (
     <ControlGroup strong className={styles.group} role="tablist" aria-label={ariaLabel}>
       {options.map((option) => (
@@ -18,6 +19,7 @@ export function SegmentedControl({ options, value, onChange, ariaLabel }: Segmen
           role="tab"
           aria-selected={option.value === value}
           className={`${styles.option} ${option.value === value ? styles.selected : ""}`}
+          disabled={disabled}
           onClick={() => onChange(option.value)}
         >
           {option.label}

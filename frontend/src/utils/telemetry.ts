@@ -42,6 +42,7 @@ export function toTelemetry(s: Snapshot | null): Telemetry {
     roll_deg: s.attitude?.roll_deg ?? null,
     pitch_deg: s.attitude?.pitch_deg ?? null,
     yaw_deg: s.attitude?.yaw_deg ?? null,
+    camera_source: s.camera?.source ?? null,
     timestamp: s.updated_at ? Date.parse(s.updated_at) / 1000 : null,
   };
 }

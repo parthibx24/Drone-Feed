@@ -1,4 +1,5 @@
 import type {
+  CameraSource,
   CamerasResponse,
   DroneSummary,
   Limits,
@@ -66,6 +67,7 @@ export const api = {
   zoom: (id: string, type: "step" | "range" | "continuous", value: number) =>
     post(drone(id, "/camera/zoom"), { type, value }),
   photo: (id: string) => post(drone(id, "/camera/photo")),
+  cameraSource: (id: string, source: CameraSource) => post(drone(id, "/camera/source"), { source }),
   cameras: (id: string) => request<CamerasResponse>(drone(id, "/cameras")),
 
   // --- recordings

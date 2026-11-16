@@ -27,6 +27,7 @@ import type { LinkState } from "../../types/drone";
 import type { Recording } from "../../types/recording";
 import { buildStats } from "../../utils/format";
 import { toTelemetry } from "../../utils/telemetry";
+import type { CameraSource } from "../../types/gateway";
 import styles from "./Dashboard.module.css";
 
 type SidebarTab = "flight" | "recordings";
@@ -67,6 +68,18 @@ export function Dashboard() {
     const next: LinkState = playing ? "ok" : "bad";
     setFeedLinks((links) => (links[stream] === next ? links : { ...links, [stream]: next }));
   }, []);
+
+  const handleCameraSource = useCallback(
+    async (source: CameraSource) => {
+      try {
+        await api.cameraSource(id, source);
+        notify(`Switching to the ${source} lens`);
+      } catch (error) {
+        notify(errorText(error));
+      }
+    },
+    [id, notify],
+  );
 
   const handleGoto = useCallback(
     async (lat: number, lon: number) => {
@@ -150,6 +163,7 @@ export function Dashboard() {
           canOperate={canOperate}
           onFeedPlayingChange={handleFeedPlaying}
           onOpenLibrary={() => setLibraryOpen(true)}
+          onCameraSource={handleCameraSource}
         />
         <div className={styles.bottomRow}>
           <Compass heading={telemetry.heading_deg} />

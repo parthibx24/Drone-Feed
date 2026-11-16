@@ -45,7 +45,8 @@ export interface Snapshot {
   home: { lat: number; lon: number; alt_msl_m: number } | null;
   mission: { current_seq: number; total: number; state?: string } | null;
   ekf: { flags: number; healthy: boolean } | null;
-  camera: { present: boolean; last_seen: string } | null;
+  /** source: the lens the video shows, on cameras that can switch it (Mavic 3T); null otherwise. */
+  camera: { present: boolean; last_seen: string; source?: CameraSource | null } | null;
   gimbal: { present: boolean; yaw_lock: boolean; last_seen: string } | null;
   updated_at: string;
 }
@@ -130,3 +131,6 @@ export type DroneEvent =
   | { type: "statustext"; data: StatusText }
   | { type: "link"; data: { online: boolean } }
   | { type: "mission_item_reached"; data: { seq: number } };
+
+/** Lenses a switchable camera can show. */
+export type CameraSource = "wide" | "zoom" | "thermal";

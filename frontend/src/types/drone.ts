@@ -1,3 +1,5 @@
+import type { CameraSource } from "./gateway";
+
 export type LinkState = "checking" | "ok" | "bad";
 
 export interface Telemetry {
@@ -20,6 +22,8 @@ export interface Telemetry {
   yaw_deg?: number | null;
   zoom_level?: number | null;
   zoom?: number | null;
+  /** The lens the video shows, when the camera can switch it. */
+  camera_source?: CameraSource | null;
   timestamp?: number | null;
 }
 

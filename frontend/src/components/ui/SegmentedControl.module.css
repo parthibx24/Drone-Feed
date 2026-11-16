@@ -18,3 +18,8 @@
   border-color: var(--color-border-button);
   background: var(--color-panel);
 }
+
+.option:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}

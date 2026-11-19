@@ -69,6 +69,18 @@ export interface Stat {
   value: string;
 }
 
+/**
+ * Charge and voltage, as far as the drone reports them ("76% · 15.9V"):
+ * some only report one (the Mavic 3T over Pilot 2 has no voltage).
+ */
+export function formatBattery(telemetry: Telemetry): string {
+  const parts = [
+    telemetry.battery_pct != null ? `${Math.round(telemetry.battery_pct)}%` : null,
+    telemetry.battery_v != null ? `${telemetry.battery_v.toFixed(1)}V` : null,
+  ].filter(Boolean);
+  return parts.length ? parts.join(" · ") : EMPTY_VALUE;
+}
+
 /** The stat cards, in the reading order of the design's two-column grid. */
 export function buildStats(telemetry: Telemetry, zoom: number): Stat[] {
   return [
@@ -77,7 +89,7 @@ export function buildStats(telemetry: Telemetry, zoom: number): Stat[] {
     { label: "Speed", value: reading(telemetry.groundspeed_m_s, (v) => `${v.toFixed(1)}m/s`) },
     { label: "Climb", value: reading(telemetry.climb_m_s, (v) => `${signed(v, 1)}m/s`) },
     { label: "Heading", value: formatBearing(telemetry.heading_deg) },
-    { label: "Battery", value: reading(telemetry.battery_v, (v) => `${v.toFixed(1)}V`) },
+    { label: "Battery", value: formatBattery(telemetry) },
     { label: "GPS", value: formatGps(telemetry) },
     { label: "Position", value: formatPosition(telemetry) },
     { label: "Roll", value: reading(telemetry.roll_deg, (v) => `${signed(v, 1)}°`) },

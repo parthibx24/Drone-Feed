@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { Button } from "./Button";
 import { Modal } from "./Modal";
 import styles from "./ConfirmDialog.module.css";
@@ -8,6 +8,8 @@ export interface ConfirmOptions {
   message: ReactNode;
   confirmLabel?: string;
   danger?: boolean;
+  /** Focus Cancel instead of the action, so Enter does not confirm (for settings that remove a safeguard). */
+  focusCancel?: boolean;
 }
 
 /**
@@ -28,18 +30,31 @@ export function useConfirm() {
     });
   }, []);
 
-  const close = (ok: boolean) => {
+  const close = useCallback((ok: boolean) => {
     resolver.current?.(ok);
     resolver.current = null;
     setOptions(null);
-  };
+  }, []);
+
+  // Escape cancels, as the close button and the backdrop do.
+  const open = options !== null;
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") close(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, close]);
 
   const element = options ? (
     <Modal title={options.title} onClose={() => close(false)} narrow>
       <div className={styles.message}>{options.message}</div>
       <div className={styles.actions}>
-        <Button onClick={() => close(false)}>Cancel</Button>
-        <Button variant={options.danger ? "danger" : "primary"} onClick={() => close(true)} autoFocus>
+        <Button onClick={() => close(false)} autoFocus={options.focusCancel}>
+          Cancel
+        </Button>
+        <Button variant={options.danger ? "danger" : "primary"} onClick={() => close(true)} autoFocus={!options.focusCancel}>
           {options.confirmLabel ?? "Confirm"}
         </Button>
       </div>

@@ -1,0 +1,142 @@
+/* Over the main feed, under the floating controls. Marks are white with a
+   dark edge so they read on every palette, hot or cold. */
+.overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+  touch-action: none;
+}
+
+.interactive {
+  pointer-events: auto;
+  cursor: crosshair;
+}
+
+.spot {
+  position: absolute;
+  width: 0;
+  height: 0;
+}
+
+.reticle {
+  position: absolute;
+  left: -16px;
+  top: -16px;
+  width: 32px;
+  height: 32px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.7), inset 0 0 0 1px rgba(0, 0, 0, 0.7);
+}
+
+/* The four ticks of the reticle; the centre stays clear over the point read. */
+.reticle::before,
+.reticle::after {
+  content: "";
+  position: absolute;
+  background: #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6);
+}
+
+.reticle::before {
+  left: 50%;
+  top: -9px;
+  width: 2px;
+  height: 46px;
+  transform: translateX(-50%);
+  mask: linear-gradient(#000 0 8px, transparent 8px 38px, #000 38px);
+}
+
+.reticle::after {
+  top: 50%;
+  left: -9px;
+  width: 46px;
+  height: 2px;
+  transform: translateY(-50%);
+  mask: linear-gradient(90deg, #000 0 8px, transparent 8px 38px, #000 38px);
+}
+
+.readout,
+.areaReadout,
+.hint {
+  position: absolute;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: var(--radius-button);
+  background: rgba(9, 12, 8, 0.74);
+  color: var(--color-text);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.readout {
+  left: 26px;
+  top: -44px;
+  padding: 5px 10px;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.flip {
+  left: auto;
+  right: 26px;
+}
+
+.area {
+  position: absolute;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.7), inset 0 0 0 1px rgba(0, 0, 0, 0.7);
+}
+
+.drawing {
+  border-style: dashed;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.areaReadout {
+  left: -2px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 10px;
+}
+
+.below {
+  top: calc(100% + 8px);
+}
+
+.above {
+  bottom: calc(100% + 8px);
+}
+
+.avg {
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.avgLabel {
+  color: var(--color-text-subtle);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.range {
+  display: flex;
+  gap: 14px;
+  color: var(--color-text-subtle);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.hint {
+  top: 118px;
+  left: 50%;
+  padding: 8px 14px;
+  transform: translateX(-50%);
+  font-size: 15px;
+  font-weight: 600;
+}

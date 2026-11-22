@@ -55,3 +55,12 @@
   display: flex;
   gap: 20px;
 }
+
+/* Four or five tabs (a drone with a speaker, thermal camera and aircraft settings). */
+.tabsMany {
+  gap: 2px;
+}
+
+.tabsMany .tab {
+  font-size: 14px;
+}

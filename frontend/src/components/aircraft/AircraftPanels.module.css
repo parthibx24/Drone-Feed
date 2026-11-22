@@ -1,0 +1,168 @@
+/* Shared by the Thermal and Aircraft tabs (same rhythm as the Speaker tab). */
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  padding: 20px 24px 24px;
+  overflow-y: auto;
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 1px solid var(--color-border-card);
+  border-radius: var(--radius-card);
+  background: var(--color-card);
+  color: var(--color-text);
+  font-size: 14px;
+}
+
+.warn {
+  color: var(--color-warning);
+}
+
+.dot {
+  flex-shrink: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--color-text-muted);
+}
+
+.dotOk {
+  background: var(--color-success);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--color-text-subtle);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.hint {
+  color: var(--color-text-muted);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.row {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.grow {
+  flex: 1;
+  min-width: 0;
+}
+
+/* SegmentedControl is sized for the video; in the sidebar it fills the width. */
+.segmented {
+  width: 100%;
+}
+
+.segmented > div {
+  width: 100%;
+  min-width: 0;
+}
+
+.segmented button {
+  flex: 1;
+  width: auto;
+}
+
+.reading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--color-border-card);
+  border-radius: var(--radius-card);
+  background: var(--color-card);
+}
+
+.readingValue {
+  color: var(--color-text);
+  font-size: 26px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.readingNote {
+  color: var(--color-text-muted);
+  font-size: 13px;
+  text-align: right;
+}
+
+.range {
+  display: flex;
+  gap: 16px;
+  color: var(--color-text-subtle);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.tile {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border-card);
+  border-radius: var(--radius-card);
+  background: var(--color-card);
+}
+
+.tileLabel {
+  color: var(--color-text-muted);
+  font-size: 13px;
+}
+
+.tileValue {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-text);
+  font-size: 16px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.tileOff {
+  color: var(--color-warning);
+}
+
+.note {
+  color: var(--color-text-muted);
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.note a {
+  color: var(--color-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.problem {
+  color: var(--color-warning);
+  font-size: 14px;
+}

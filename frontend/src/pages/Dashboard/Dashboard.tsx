@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { Compass } from "../../components/dashboard/Compass";
 import { DroneMap } from "../../components/dashboard/DroneMap";
 import { GimbalPad } from "../../components/dashboard/GimbalPad";
@@ -17,6 +17,7 @@ import { Panel } from "../../components/ui/Panel";
 import { Toast } from "../../components/ui/Toast";
 import { useAuth } from "../../context/AuthContext";
 import { useDrone } from "../../context/DroneContext";
+import { useAircraftFeatures } from "../../hooks/useAircraftFeatures";
 import { useCameras } from "../../hooks/useCameras";
 import { useGimbal } from "../../hooks/useGimbal";
 import { useKeyboardShortcuts } from "../../hooks/useKeyboardShortcuts";
@@ -29,12 +30,26 @@ import type { LinkState } from "../../types/drone";
 import type { Recording } from "../../types/recording";
 import { buildStats } from "../../utils/format";
 import { toTelemetry } from "../../utils/telemetry";
-import type { CameraSource } from "../../types/gateway";
+import type { AircraftCommand, AircraftFeature, CameraSource } from "../../types/gateway";
 import styles from "./Dashboard.module.css";
 
-type SidebarTab = "flight" | "recordings" | "speaker";
+type SidebarTab = "flight" | "recordings" | "speaker" | "thermal" | "aircraft";
 
-const TAB_LABELS: Record<SidebarTab, string> = { flight: "Flight", recordings: "Recordings", speaker: "Speaker" };
+const TAB_LABELS: Record<SidebarTab, string> = {
+  flight: "Flight",
+  recordings: "Recordings",
+  speaker: "Speaker",
+  thermal: "Thermal",
+  aircraft: "Aircraft",
+};
+
+// Only drones with an aircraft API (the Mavic 3T) use these: loaded on demand.
+const aircraftUi = () => import("../../components/aircraft");
+const ThermalPanel = lazy(() => aircraftUi().then((m) => ({ default: m.ThermalPanel })));
+const ThermalOverlay = lazy(() => aircraftUi().then((m) => ({ default: m.ThermalOverlay })));
+const AircraftPanel = lazy(() => aircraftUi().then((m) => ({ default: m.AircraftPanel })));
+
+const THERMAL_FEATURES: AircraftFeature[] = ["thermal_measure", "thermal_palette", "thermal_gain", "isotherm"];
 
 export function Dashboard() {
   const { message, notify } = useToast();
@@ -53,7 +68,16 @@ export function Dashboard() {
   const [previewItem, setPreviewItem] = useState<Recording | null>(null);
   const [tab, setTab] = useState<SidebarTab>("flight");
   const speaker = useSpeaker(id, tab === "speaker");
-  const tabs: SidebarTab[] = speaker.available ? ["flight", "recordings", "speaker"] : ["flight", "recordings"];
+  const aircraft = useAircraftFeatures(id);
+  const hasThermal = THERMAL_FEATURES.some(aircraft.has);
+  const hasAircraft = aircraft.has("obstacle_avoidance") || aircraft.has("rtk") || aircraft.has("health");
+  const tabs: SidebarTab[] = [
+    "flight",
+    "recordings",
+    ...(speaker.available ? (["speaker"] as const) : []),
+    ...(aircraft.available && hasThermal ? (["thermal"] as const) : []),
+    ...(aircraft.available && hasAircraft ? (["aircraft"] as const) : []),
+  ];
   const shownTab: SidebarTab = tabs.includes(tab) ? tab : "flight";
   const [gotoActive, setGotoActive] = useState(false);
   const [gotoTarget, setGotoTarget] = useState<[number, number] | null>(null);
@@ -126,13 +150,43 @@ export function Dashboard() {
   const recordingHandlers = { onPreview: setPreviewItem, onDelete: recording.deleteRecording };
   const canGoto = canOperate && Boolean(snapshot?.online && snapshot.armed);
 
+  // Spot and area temperatures on the video, while the thermal lens is shown
+  // and the readings are fresh (none while the aircraft is offline).
+  const thermal = aircraft.state?.thermal ?? null;
+  const measuring = aircraft.live && aircraft.has("thermal_measure") && thermal !== null && thermal.measure !== "off";
+  const onThermalLens = telemetry.camera_source === "thermal";
+  const sendAircraft = aircraft.send;
+  const meter = useCallback(
+    async (command: AircraftCommand) => {
+      const reason = await sendAircraft(command);
+      if (reason) notify(reason);
+    },
+    [sendAircraft, notify],
+  );
+  const renderOverlay =
+    measuring && onThermalLens
+      ? (videoSize: { width: number; height: number } | null) => (
+          <Suspense fallback={null}>
+            <ThermalOverlay
+              videoSize={videoSize}
+              measure={thermal.measure}
+              spot={thermal.spot}
+              area={thermal.area}
+              interactive={canOperate}
+              onSpot={(x, y) => void meter({ kind: "meter_spot", x, y })}
+              onArea={(x, y, width, height) => void meter({ kind: "meter_area", x, y, width, height })}
+            />
+          </Suspense>
+        )
+      : undefined;
+
   return (
     <PageFrame header={<DroneTopBar extraLinks={feedStatuses} />}>
       <ThermalFilter />
       <Panel className={styles.sidebar}>
         <StatsPanel stats={buildStats(telemetry, gimbal.zoom)} />
         <div className={styles.lower}>
-          <div className={styles.tabs} role="tablist">
+          <div className={`${styles.tabs} ${tabs.length > 3 ? styles.tabsMany : ""}`} role="tablist">
             {tabs.map((t) => (
               <button
                 key={t}
@@ -152,6 +206,20 @@ export function Dashboard() {
             </div>
           ) : shownTab === "speaker" ? (
             <SpeakerPanel droneId={id} speaker={speaker} canOperate={canOperate} notify={notify} />
+          ) : shownTab === "thermal" || shownTab === "aircraft" ? (
+            <Suspense fallback={null}>
+              {shownTab === "thermal" ? (
+                <ThermalPanel
+                  aircraft={aircraft}
+                  canOperate={canOperate}
+                  cameraSource={telemetry.camera_source ?? null}
+                  onThermalLens={() => void handleCameraSource("thermal")}
+                  notify={notify}
+                />
+              ) : (
+                <AircraftPanel droneId={id} aircraft={aircraft} canOperate={canOperate} confirm={confirm.ask} notify={notify} />
+              )}
+            </Suspense>
           ) : (
             <RecentRecordings
               listVersion={recording.listVersion}
@@ -173,6 +241,8 @@ export function Dashboard() {
           onFeedPlayingChange={handleFeedPlaying}
           onOpenLibrary={() => setLibraryOpen(true)}
           onCameraSource={handleCameraSource}
+          nativeThermal={aircraft.has("thermal_palette")}
+          renderOverlay={renderOverlay}
         />
         <div className={styles.bottomRow}>
           <Compass heading={telemetry.heading_deg} />

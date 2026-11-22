@@ -148,3 +148,90 @@ export interface SpeakerInfo {
   can_play: boolean;
 }
 
+
+// --- aircraft features (drones with an aircraft API: GET /drones/{id}/features; 404 otherwise)
+
+/** Feature names the aircraft offers; the dashboard shows a control only when its feature is listed. */
+export type AircraftFeature =
+  | "thermal_measure"
+  | "thermal_palette"
+  | "thermal_gain"
+  | "isotherm"
+  | "obstacle_avoidance"
+  | "rtk"
+  | "health";
+
+export type ThermalMeasure = "off" | "spot" | "area";
+
+/** Positions and sizes are fractions (0..1) of the thermal image, from its top-left corner. */
+export interface ThermalSpot {
+  x: number;
+  y: number;
+  temp_c: number | null;
+}
+
+export interface ThermalArea {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  avg_c: number | null;
+  min_c: number | null;
+  max_c: number | null;
+}
+
+export interface Isotherm {
+  enabled: boolean;
+  low_c: number;
+  high_c: number;
+}
+
+export interface ThermalState {
+  palette: string;
+  palettes: string[];
+  /** "high" (finer detail, narrower range), "low" (wider range) or "auto". */
+  gain: string;
+  isotherm: Isotherm | null;
+  measure: ThermalMeasure;
+  spot: ThermalSpot | null;
+  area: ThermalArea | null;
+}
+
+export type AvoidanceMode = "brake" | "bypass" | "off";
+
+export interface AvoidanceState {
+  mode: AvoidanceMode;
+  /** Whether each direction is sensing. */
+  horizontal: boolean;
+  up: boolean;
+  down: boolean;
+}
+
+export type RtkFix = "none" | "single" | "float" | "fixed";
+
+export interface RtkState {
+  present: boolean;
+  enabled: boolean;
+  fix: RtkFix;
+  sats: number;
+}
+
+export interface AircraftFeatures {
+  features: AircraftFeature[];
+  thermal: ThermalState | null;
+  avoidance: AvoidanceState | null;
+  rtk: RtkState | null;
+  /** False while the aircraft (or the pilot app carrying it) is not connected. */
+  online: boolean;
+}
+
+/** The commands POST /drones/{id}/aircraft-command accepts. */
+export type AircraftCommand =
+  | { kind: "set_metering"; mode: ThermalMeasure }
+  | { kind: "meter_spot"; x: number; y: number }
+  | { kind: "meter_area"; x: number; y: number; width: number; height: number }
+  | { kind: "thermal_palette"; palette: string }
+  | { kind: "thermal_gain"; gain: "high" | "low" }
+  | { kind: "thermal_isotherm"; enabled: boolean; low_c: number; high_c: number }
+  | { kind: "obstacle_avoidance"; mode: AvoidanceMode }
+  | { kind: "rtk_enable"; enabled: boolean };

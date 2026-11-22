@@ -1,4 +1,6 @@
 import type {
+  AircraftCommand,
+  AircraftFeatures,
   CameraSource,
   CamerasResponse,
   DroneSummary,
@@ -78,6 +80,11 @@ export const api = {
   speakerStop: (id: string) => post(drone(id, "/speaker/stop")),
   speakerVolume: (id: string, volume: number) => post(drone(id, "/speaker/volume"), { volume }),
   cameras: (id: string) => request<CamerasResponse>(drone(id, "/cameras")),
+
+  // --- aircraft features (drones with an aircraft API; 404 otherwise)
+  features: (id: string) => request<AircraftFeatures>(drone(id, "/features")),
+  aircraftCommand: (id: string, command: AircraftCommand) =>
+    post<{ ok: boolean; kind: string }>(drone(id, "/aircraft-command"), command),
 
   // --- recordings
   recordingStatus: () => request<RecordingStatusResponse>("/api/v1/recordings/status"),

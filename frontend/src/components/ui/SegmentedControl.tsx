@@ -7,11 +7,13 @@ interface SegmentedControlProps {
   onChange: (value: string) => void;
   ariaLabel: string;
   disabled?: boolean;
+  /** "md" floats over the video; "sm" is the same control sized for the sidebar, filling its row. */
+  size?: "md" | "sm";
 }
 
-export function SegmentedControl({ options, value, onChange, ariaLabel, disabled = false }: SegmentedControlProps) {
+export function SegmentedControl({ options, value, onChange, ariaLabel, disabled = false, size = "md" }: SegmentedControlProps) {
   return (
-    <ControlGroup strong className={styles.group} role="tablist" aria-label={ariaLabel}>
+    <ControlGroup strong className={`${styles.group} ${size === "sm" ? styles.sm : ""}`} role="tablist" aria-label={ariaLabel}>
       {options.map((option) => (
         <button
           key={option.value}

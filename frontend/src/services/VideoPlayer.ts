@@ -10,6 +10,8 @@ export interface VideoPlayerCallbacks {
   /** A message to show over the feed, or null when it is playing. */
   onStatus: (message: string | null) => void;
   onPlayingChange: (playing: boolean) => void;
+  /** The picture's own size in pixels, reported while it plays. */
+  onVideoSize?: (width: number, height: number) => void;
 }
 
 interface Connection {
@@ -98,9 +100,12 @@ export class VideoPlayer {
     if (!silent) this.callbacks.onStatus(`Connecting to ${streamName}…`);
 
     this.messageListener = (event: MessageEvent) => {
-      const data = event.data as { type?: string; stream?: string } | null;
+      const data = event.data as { type?: string; stream?: string; width?: unknown; height?: unknown } | null;
       if (!data || typeof data !== "object" || data.stream !== streamName) return;
       if (data.type === "video-playing") {
+        if (typeof data.width === "number" && typeof data.height === "number" && data.width > 0 && data.height > 0) {
+          this.callbacks.onVideoSize?.(data.width, data.height);
+        }
         this.callbacks.onStatus(null);
         this.lastFrameAt = Date.now();
         this.callbacks.onPlayingChange(true);

@@ -1,0 +1,42 @@
+/** A rectangle in CSS pixels, relative to its container. */
+export interface Rect {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
+/**
+ * Where a picture of videoWidth × videoHeight is drawn inside a box of
+ * boxWidth × boxHeight with object-fit: contain (centred, letterboxed or
+ * pillarboxed). Without the picture's size, the whole box.
+ */
+export function containRect(boxWidth: number, boxHeight: number, videoWidth?: number, videoHeight?: number): Rect {
+  if (!videoWidth || !videoHeight || boxWidth <= 0 || boxHeight <= 0) {
+    return { left: 0, top: 0, width: Math.max(0, boxWidth), height: Math.max(0, boxHeight) };
+  }
+  const scale = Math.min(boxWidth / videoWidth, boxHeight / videoHeight);
+  const width = videoWidth * scale;
+  const height = videoHeight * scale;
+  return { left: (boxWidth - width) / 2, top: (boxHeight - height) / 2, width, height };
+}
+
+const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
+
+/**
+ * The point (px, py) of the box as fractions (0..1) of the picture, from its
+ * top-left corner. Null outside the picture (on the black bars), unless
+ * clamp is set, which pulls the point onto the picture's edge (for drags).
+ */
+export function toImage(rect: Rect, px: number, py: number, clamp = false): { x: number; y: number } | null {
+  if (rect.width <= 0 || rect.height <= 0) return null;
+  const x = (px - rect.left) / rect.width;
+  const y = (py - rect.top) / rect.height;
+  if (clamp) return { x: clamp01(x), y: clamp01(y) };
+  return x < 0 || x > 1 || y < 0 || y > 1 ? null : { x, y };
+}
+
+/** A fraction of the picture back to box pixels. */
+export function fromImage(rect: Rect, x: number, y: number): { left: number; top: number } {
+  return { left: rect.left + x * rect.width, top: rect.top + y * rect.height };
+}

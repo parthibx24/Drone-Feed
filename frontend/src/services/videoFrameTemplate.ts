@@ -274,7 +274,13 @@ export function buildVideoFrameHtml(go2rtcUrl: string, streamName: string): stri
           fpsEl.textContent = fps + " fps";
           fpsEl.classList.remove("zero");
           hasProbedZeroFps = false; // Reset 0fps probe flag when stream is active
-          window.parent?.postMessage({ type: "video-playing", stream: streamName, fps: fps }, "*");
+          // The picture's own size, so the dashboard can find it inside the
+          // letterboxed frame (object-fit: contain) for clicks on the image.
+          window.parent?.postMessage({
+            type: "video-playing", stream: streamName, fps: fps,
+            width: targetVideo ? targetVideo.videoWidth : 0,
+            height: targetVideo ? targetVideo.videoHeight : 0,
+          }, "*");
         } else {
           fpsEl.textContent = "0 fps";
           fpsEl.classList.add("zero");

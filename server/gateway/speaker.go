@@ -49,9 +49,16 @@ func speakerFor(w http.ResponseWriter, d *Drone) (*SpeakerConfig, bool) {
 	return d.cfg.Speaker, true
 }
 
-// speakerProxy forwards one request upstream and passes the status and the
-// JSON body back unchanged. Unreachable upstream → 502, timeout → 504.
+// speakerProxy forwards one request to the speaker API.
 func speakerProxy(w http.ResponseWriter, r *http.Request, sp *SpeakerConfig, method, path string, body any, wait time.Duration) {
+	upstreamProxy(w, r, "speaker service", sp.API, sp.Token, method, path, body, wait)
+}
+
+// upstreamProxy forwards one request to an upstream API (the speaker's or
+// the aircraft's, both dji-bridge's) with its bearer token, and passes the
+// status and the JSON body back unchanged. Unreachable upstream → 502,
+// timeout → 504; service names it in those errors.
+func upstreamProxy(w http.ResponseWriter, r *http.Request, service, api, token, method, path string, body any, wait time.Duration) {
 	var rd io.Reader
 	if body != nil {
 		b, _ := json.Marshal(body)
@@ -59,12 +66,12 @@ func speakerProxy(w http.ResponseWriter, r *http.Request, sp *SpeakerConfig, met
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), wait)
 	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, method, sp.API+path, rd)
+	req, err := http.NewRequestWithContext(ctx, method, api+path, rd)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	req.Header.Set("Authorization", "Bearer "+sp.Token)
+	req.Header.Set("Authorization", "Bearer "+token)
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
@@ -72,13 +79,19 @@ func speakerProxy(w http.ResponseWriter, r *http.Request, sp *SpeakerConfig, met
 	if err != nil {
 		var ne net.Error
 		if errors.Is(err, context.DeadlineExceeded) || (errors.As(err, &ne) && ne.Timeout()) {
-			writeErr(w, http.StatusGatewayTimeout, "no answer from the speaker service")
+			writeErr(w, http.StatusGatewayTimeout, "no answer from the "+service)
 		} else {
-			writeErr(w, http.StatusBadGateway, "speaker service unreachable")
+			writeErr(w, http.StatusBadGateway, service+" unreachable")
 		}
 		return
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+		// The upstream refused the gateway, not the user: passing a 401 on
+		// would sign the dashboard user out.
+		writeErr(w, http.StatusBadGateway, service+" refused the gateway's token")
+		return
+	}
 	data, _ := io.ReadAll(io.LimitReader(resp.Body, speakerMaxBody))
 	var parsed map[string]any
 	if json.Unmarshal(data, &parsed) != nil {

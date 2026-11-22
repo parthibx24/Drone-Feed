@@ -88,10 +88,24 @@ type DroneConfig struct {
 	// StreamPrefix: go2rtc streams named "<prefix>_*" belong to this drone
 	// (e.g. kotowali_camera). Defaults to the id. Also names its recordings.
 	StreamPrefix string `yaml:"stream_prefix"`
+	// Bridge, when set, is the drone's aircraft API beyond MAVLink
+	// (dji-bridge's, for the Mavic 3T): thermal measurement, palette and
+	// gain, obstacle avoidance, RTK, and the speaker at {api}/speaker.
+	// Nil = the drone has none of these (a plain ArduPilot drone).
+	Bridge *BridgeConfig `yaml:"bridge"`
 	// Speaker, when set, is a loudspeaker on the drone that is not reached
 	// over MAVLink: the gateway proxies the dashboard's speaker controls to
-	// this HTTP API (dji-bridge's, for the Mavic 3T). Nil = no speaker.
+	// this HTTP API. Defaults to {bridge.api}/speaker when Bridge is set;
+	// set it only to point the speaker elsewhere. Nil = no speaker.
 	Speaker *SpeakerConfig `yaml:"speaker"`
+}
+
+// BridgeConfig locates a drone's aircraft API.
+type BridgeConfig struct {
+	// API is the aircraft's base URL, e.g. http://dji-bridge:8090/api/v1/aircraft/<serial>.
+	API string `yaml:"api"`
+	// Token is sent as "Authorization: Bearer <token>" (use ${VAR}).
+	Token string `yaml:"token"`
 }
 
 // SpeakerConfig locates a drone's speaker API.
@@ -251,17 +265,34 @@ func (c *Config) Normalize() error {
 		if d.StreamPrefix == "" {
 			c.Drones[i].StreamPrefix = d.ID
 		}
-		if sp := d.Speaker; sp != nil {
-			sp.API = strings.TrimRight(strings.TrimSpace(sp.API), "/")
-			sp.Token = strings.TrimSpace(sp.Token)
-			u, err := url.Parse(sp.API)
-			if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
-				return fmt.Errorf("drones[%d] %s: speaker.api must be an http(s) URL", i, d.ID)
+		if b := d.Bridge; b != nil {
+			if err := checkUpstream(&b.API, &b.Token); err != "" {
+				return fmt.Errorf("drones[%d] %s: bridge.%s", i, d.ID, err)
 			}
-			if sp.Token == "" {
-				return fmt.Errorf("drones[%d] %s: speaker.token is required (set its environment variable)", i, d.ID)
+			if d.Speaker == nil {
+				c.Drones[i].Speaker = &SpeakerConfig{API: b.API + "/speaker", Token: b.Token}
+			}
+		}
+		if sp := c.Drones[i].Speaker; sp != nil {
+			if err := checkUpstream(&sp.API, &sp.Token); err != "" {
+				return fmt.Errorf("drones[%d] %s: speaker.%s", i, d.ID, err)
 			}
 		}
 	}
 	return nil
+}
+
+// checkUpstream trims an upstream API's URL and token in place and checks
+// them; it returns what is wrong ("api must be …"), or "".
+func checkUpstream(api, token *string) string {
+	*api = strings.TrimRight(strings.TrimSpace(*api), "/")
+	*token = strings.TrimSpace(*token)
+	u, err := url.Parse(*api)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		return "api must be an http(s) URL"
+	}
+	if *token == "" {
+		return "token is required (set its environment variable)"
+	}
+	return ""
 }

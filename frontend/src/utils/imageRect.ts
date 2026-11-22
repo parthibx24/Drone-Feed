@@ -40,3 +40,26 @@ export function toImage(rect: Rect, px: number, py: number, clamp = false): { x:
 export function fromImage(rect: Rect, x: number, y: number): { left: number; top: number } {
   return { left: rect.left + x * rect.width, top: rect.top + y * rect.height };
 }
+
+/**
+ * A picture of aspect width:height drawn centred inside rect (as a thermal
+ * camera pillarboxes its 640x512 image in a 16:9 stream), in the same
+ * coordinates as rect.
+ */
+export function innerRect(rect: Rect, width: number, height: number): Rect {
+  const inner = containRect(rect.width, rect.height, width, height);
+  return { ...inner, left: rect.left + inner.left, top: rect.top + inner.top };
+}
+
+/** True when (px, py) is on rect, edges included. */
+export function contains(rect: Rect, px: number, py: number): boolean {
+  return px >= rect.left && px <= rect.left + rect.width && py >= rect.top && py <= rect.top + rect.height;
+}
+
+/** (px, py) pulled onto rect's nearest edge when outside it. */
+export function clampTo(rect: Rect, px: number, py: number): { px: number; py: number } {
+  return {
+    px: Math.min(rect.left + rect.width, Math.max(rect.left, px)),
+    py: Math.min(rect.top + rect.height, Math.max(rect.top, py)),
+  };
+}

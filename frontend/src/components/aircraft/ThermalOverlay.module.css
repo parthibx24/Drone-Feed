@@ -1,5 +1,6 @@
 /* Over the main feed, under the floating controls. Marks are white with a
-   dark edge so they read on every palette, hot or cold. */
+   dark halo so they read on every palette, hot or cold; readouts are the
+   video chips' dark tray with white tabular figures. */
 .overlay {
   position: absolute;
   inset: 0;
@@ -10,9 +11,22 @@
   touch-action: none;
 }
 
+/* Measuring: the bars around the image can't be measured. */
 .interactive {
   pointer-events: auto;
+  cursor: not-allowed;
+}
+
+/* The thermal image itself. */
+.target {
+  position: absolute;
   cursor: crosshair;
+}
+
+.spot,
+.area,
+.hint {
+  pointer-events: none;
 }
 
 .spot {
@@ -21,68 +35,73 @@
   height: 0;
 }
 
+/* A ring with four ticks outside it: the point read stays visible in the middle. */
 .reticle {
   position: absolute;
-  left: -16px;
-  top: -16px;
-  width: 32px;
-  height: 32px;
+  left: -11px;
+  top: -11px;
+  width: 22px;
+  height: 22px;
   border: 2px solid #fff;
   border-radius: 50%;
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.7), inset 0 0 0 1px rgba(0, 0, 0, 0.7);
+  filter: drop-shadow(0 0 1px #000) drop-shadow(0 0 1px #000) drop-shadow(0 0 3px rgba(0, 0, 0, 0.5));
 }
 
-/* The four ticks of the reticle; the centre stays clear over the point read. */
 .reticle::before,
 .reticle::after {
   content: "";
   position: absolute;
   background: #fff;
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6);
 }
 
 .reticle::before {
   left: 50%;
-  top: -9px;
+  top: -10px;
   width: 2px;
-  height: 46px;
+  height: 38px;
   transform: translateX(-50%);
-  mask: linear-gradient(#000 0 8px, transparent 8px 38px, #000 38px);
+  mask: linear-gradient(#000 0 6px, transparent 6px 32px, #000 32px);
 }
 
 .reticle::after {
   top: 50%;
-  left: -9px;
-  width: 46px;
+  left: -10px;
+  width: 38px;
   height: 2px;
   transform: translateY(-50%);
-  mask: linear-gradient(90deg, #000 0 8px, transparent 8px 38px, #000 38px);
+  mask: linear-gradient(90deg, #000 0 6px, transparent 6px 32px, #000 32px);
 }
 
 .readout,
 .areaReadout,
 .hint {
   position: absolute;
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid var(--color-border-control);
   border-radius: var(--radius-button);
-  background: rgba(9, 12, 8, 0.74);
+  background: rgba(9, 12, 8, 0.82);
   color: var(--color-text);
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
-}
-
-.readout {
-  left: 26px;
-  top: -44px;
-  padding: 5px 10px;
-  font-size: 20px;
-  font-weight: 700;
   line-height: 1.2;
 }
 
-.flip {
+.readout {
+  left: 18px;
+  bottom: 12px;
+  padding: 5px 9px;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.flipX {
   left: auto;
-  right: 26px;
+  right: 18px;
+}
+
+.pending {
+  color: var(--color-text-subtle);
+  font-size: 15px;
+  font-weight: 600;
 }
 
 .area {
@@ -93,15 +112,21 @@
 
 .drawing {
   border-style: dashed;
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .areaReadout {
   left: -2px;
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  gap: 16px;
   padding: 6px 10px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.alignRight {
+  left: auto;
+  right: -2px;
 }
 
 .below {
@@ -112,31 +137,35 @@
   bottom: calc(100% + 8px);
 }
 
-.avg {
-  font-size: 20px;
-  font-weight: 700;
-  line-height: 1.2;
+.inside {
+  top: 6px;
+  left: 6px;
 }
 
-.avgLabel {
+.inside.alignRight {
+  left: auto;
+  right: 6px;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.statLabel {
   color: var(--color-text-subtle);
   font-size: 13px;
-  font-weight: 600;
-}
-
-.range {
-  display: flex;
-  gap: 14px;
-  color: var(--color-text-subtle);
-  font-size: 14px;
-  font-weight: 600;
 }
 
 .hint {
   top: 118px;
   left: 50%;
-  padding: 8px 14px;
+  display: flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 14px;
   transform: translateX(-50%);
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 600;
 }

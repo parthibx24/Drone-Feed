@@ -2,10 +2,10 @@ import { useEffect, useState } from "react";
 import type { AircraftControls } from "../../hooks/useAircraftFeatures";
 import type { AircraftCommand, CameraSource, ThermalMeasure } from "../../types/gateway";
 import { Button } from "../ui/Button";
-import { Field, NumberInput, Select } from "../ui/Field";
+import { NumberInput, Select } from "../ui/Field";
 import { SegmentedControl } from "../ui/SegmentedControl";
 import { Switch } from "../ui/Switch";
-import { formatTemp, paletteLabel } from "./thermal";
+import { formatTemp, paletteGradient, paletteLabel } from "./thermal";
 import styles from "./AircraftPanels.module.css";
 
 interface ThermalPanelProps {
@@ -23,6 +23,11 @@ const GAINS = [
   { value: "low", label: "Low" },
 ];
 
+const GAIN_HINT: Record<string, string> = {
+  high: "−20 to 150 °C, finer detail",
+  low: "0 to 500 °C, wider range",
+};
+
 const MEASURES: { value: ThermalMeasure; label: string }[] = [
   { value: "off", label: "Off" },
   { value: "spot", label: "Spot" },
@@ -30,14 +35,15 @@ const MEASURES: { value: ThermalMeasure; label: string }[] = [
 ];
 
 const MEASURE_DONE: Record<ThermalMeasure, string> = {
-  off: "Measurement off",
+  off: "Measuring off",
   spot: "Measuring a spot",
   area: "Measuring an area",
 };
 
 /**
  * The aircraft's thermal camera: palette, gain, isotherm and spot or area
- * temperature (read on the video, see ThermalOverlay).
+ * temperature (read on the video, see ThermalOverlay). Measuring, the live
+ * task, comes first; the picture's settings follow, one per row.
  */
 export function ThermalPanel({ aircraft, canOperate, cameraSource, onThermalLens, notify }: ThermalPanelProps) {
   const { state, live, offlineReason, has, pending, send } = aircraft;
@@ -63,105 +69,170 @@ export function ThermalPanel({ aircraft, canOperate, cameraSource, onThermalLens
     setHigh(isoHigh);
   }, [editing, isoLow, isoHigh]);
   const rangeProblem =
-    low == null || high == null ? "Enter both temperatures" : low >= high ? "The low end must be below the high end" : null;
+    low == null || high == null ? "Enter both temperatures" : low >= high ? "The first temperature must be the lower one" : null;
 
-  const status = !live
+  // Only what needs attention is said: offline, no camera, or view only.
+  const notice = !live
     ? offlineReason
     : !thermal
       ? "The aircraft reports no thermal camera"
       : !canOperate
-        ? "View only: changing settings needs the operator role"
+        ? "View only: an operator login is needed to change settings"
         : null;
+  const fault = !live || !thermal;
 
   const measure = thermal?.measure ?? "off";
-  const onThermal = cameraSource === "thermal";
+  const wrongLens = measure !== "off" && cameraSource !== null && cameraSource !== "thermal";
+  const palette = thermal?.palette ?? "";
 
   return (
     <div className={styles.panel}>
-      <div className={`${styles.status} ${status && !(live && thermal) ? styles.warn : ""}`} role="status">
-        <span className={`${styles.dot} ${live && thermal ? styles.dotOk : ""}`} aria-hidden />
-        {status ?? "Thermal camera ready"}
-      </div>
+      {notice && (
+        <div className={`${styles.notice} ${fault ? styles.warn : ""}`} role="status">
+          {notice}
+        </div>
+      )}
+
+      {has("thermal_measure") && (
+        <>
+          <div className={styles.setting}>
+            <span className={styles.label}>Measure</span>
+            <SegmentedControl
+              size="sm"
+              ariaLabel="Measure"
+              options={MEASURES}
+              value={measure}
+              disabled={!can || pending === "set_metering"}
+              onChange={(mode) => mode !== measure && void run({ kind: "set_metering", mode: mode as ThermalMeasure }, MEASURE_DONE[mode as ThermalMeasure])}
+            />
+            {!canOperate ? null : measure === "off" ? (
+              <span className={styles.sub}>Read a point or an area on the thermal video</span>
+            ) : wrongLens ? (
+              <span className={styles.sub}>Switch the video to Thermal to measure</span>
+            ) : (
+              <span className={styles.sub}>
+                {measure === "spot" ? "Click the thermal video to read a point" : "Drag on the thermal video to read an area"}
+              </span>
+            )}
+          </div>
+
+          {measure === "spot" && (
+            <div className={styles.reading}>
+              <Reading label="Spot" value={thermal?.spot?.temp_c ?? null} />
+              {wrongLens && onThermalLens ? (
+                <Button size="sm" className={styles.push} disabled={!canOperate} onClick={onThermalLens}>
+                  Show thermal
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  className={styles.push}
+                  disabled={!can || pending === "meter_spot"}
+                  onClick={() => void run({ kind: "meter_spot", x: 0.5, y: 0.5 }, "Measuring the centre")}
+                >
+                  Read centre
+                </Button>
+              )}
+            </div>
+          )}
+          {measure === "area" && (
+            <div className={styles.reading}>
+              <Reading label="Avg" value={thermal?.area?.avg_c ?? null} />
+              <Reading label="Min" value={thermal?.area?.min_c ?? null} />
+              <Reading label="Max" value={thermal?.area?.max_c ?? null} />
+              {wrongLens && onThermalLens && (
+                <Button size="sm" className={styles.push} disabled={!canOperate} onClick={onThermalLens}>
+                  Show thermal
+                </Button>
+              )}
+            </div>
+          )}
+        </>
+      )}
 
       {has("thermal_palette") && (
-        <Field label="Palette" hint="How temperatures are coloured on the thermal video.">
-          <Select
-            value={thermal?.palette ?? ""}
-            disabled={!can || pending === "thermal_palette"}
-            onChange={(e) => {
-              const palette = e.target.value;
-              void run({ kind: "thermal_palette", palette }, `Palette set to ${paletteLabel(palette)}`);
-            }}
-          >
-            {thermal && !thermal.palettes.includes(thermal.palette) && <option value={thermal.palette}>{paletteLabel(thermal.palette)}</option>}
-            {(thermal?.palettes ?? []).map((p) => (
-              <option key={p} value={p}>
-                {paletteLabel(p)}
-              </option>
-            ))}
-          </Select>
-        </Field>
+        <div className={styles.setting}>
+          <label className={styles.label} htmlFor="thermal-palette">
+            Palette
+          </label>
+          <div className={styles.paletteBox}>
+            <span className={styles.swatch} style={{ backgroundImage: palette ? paletteGradient(palette) : undefined }} aria-hidden />
+            <Select
+              id="thermal-palette"
+              className={styles.select}
+              value={palette}
+              disabled={!can || pending === "thermal_palette"}
+              onChange={(e) => {
+                const next = e.target.value;
+                void run({ kind: "thermal_palette", palette: next }, `Palette set to ${paletteLabel(next)}`);
+              }}
+            >
+              {thermal && !thermal.palettes.includes(thermal.palette) && <option value={thermal.palette}>{paletteLabel(thermal.palette)}</option>}
+              {(thermal?.palettes ?? []).map((p) => (
+                <option key={p} value={p}>
+                  {paletteLabel(p)}
+                </option>
+              ))}
+            </Select>
+          </div>
+        </div>
       )}
 
       {has("thermal_gain") && (
-        <section className={styles.section} aria-label="Gain">
-          <div className={styles.heading}>Gain</div>
-          <div className={styles.segmented}>
-            <SegmentedControl
-              ariaLabel="Gain"
-              options={GAINS}
-              value={thermal?.gain ?? ""}
-              disabled={!can || pending === "thermal_gain"}
-              onChange={(gain) =>
-                gain !== thermal?.gain &&
-                void run({ kind: "thermal_gain", gain: gain as "high" | "low" }, `Gain set to ${gain === "high" ? "High" : "Low"}`)
-              }
-            />
-          </div>
-          <div className={styles.hint}>High shows finer differences, −20 to 150 °C. Low covers a wider range, 0 to 500 °C.</div>
-        </section>
+        <div className={styles.setting}>
+          <span className={styles.label}>Gain</span>
+          <SegmentedControl
+            size="sm"
+            ariaLabel="Gain"
+            options={GAINS}
+            value={thermal?.gain ?? ""}
+            disabled={!can || pending === "thermal_gain"}
+            onChange={(gain) =>
+              gain !== thermal?.gain &&
+              void run({ kind: "thermal_gain", gain: gain as "high" | "low" }, `Gain set to ${gain === "high" ? "High" : "Low"}`)
+            }
+          />
+          <span className={styles.sub}>{GAIN_HINT[thermal?.gain ?? ""] ?? "High: −20 to 150 °C. Low: 0 to 500 °C."}</span>
+        </div>
       )}
 
       {has("isotherm") && (
-        <section className={styles.section} aria-label="Isotherm">
-          <div className={styles.heading}>
+        <div className={styles.setting}>
+          <span className={styles.label} id="isotherm-label">
             Isotherm
-            <Switch
-              label="Isotherm"
-              checked={Boolean(iso?.enabled)}
-              disabled={!can || rangeProblem !== null}
-              busy={pending === "thermal_isotherm"}
-              onChange={(enabled) =>
-                void run({ kind: "thermal_isotherm", enabled, low_c: low!, high_c: high! }, enabled ? "Isotherm on" : "Isotherm off")
-              }
+          </span>
+          <div className={styles.control} role="group" aria-labelledby="isotherm-label">
+            <NumberInput
+              className={styles.num}
+              aria-label="Isotherm from, °C"
+              value={low}
+              step={0.5}
+              disabled={!can}
+              onValue={(v) => {
+                setEditing(true);
+                setLow(v);
+              }}
             />
-          </div>
-          <div className={styles.row}>
-            <Field label="From °C" className={styles.grow}>
-              <NumberInput
-                value={low}
-                step={0.5}
-                disabled={!can}
-                onValue={(v) => {
-                  setEditing(true);
-                  setLow(v);
-                }}
-              />
-            </Field>
-            <Field label="To °C" className={styles.grow}>
-              <NumberInput
-                value={high}
-                step={0.5}
-                disabled={!can}
-                onValue={(v) => {
-                  setEditing(true);
-                  setHigh(v);
-                }}
-              />
-            </Field>
+            <span className={styles.unit} aria-hidden>
+              –
+            </span>
+            <NumberInput
+              className={styles.num}
+              aria-label="Isotherm to, °C"
+              value={high}
+              step={0.5}
+              disabled={!can}
+              onValue={(v) => {
+                setEditing(true);
+                setHigh(v);
+              }}
+            />
+            <span className={styles.unit}>°C</span>
             <Button
+              size="sm"
+              className={styles.push}
               disabled={!can || !editing || rangeProblem !== null}
-              busy={pending === "thermal_isotherm"}
+              busy={pending === "thermal_isotherm" && editing}
               onClick={async () => {
                 await run(
                   { kind: "thermal_isotherm", enabled: true, low_c: low!, high_c: high! },
@@ -172,77 +243,29 @@ export function ThermalPanel({ aircraft, canOperate, cameraSource, onThermalLens
             >
               Apply
             </Button>
-          </div>
-          <div className={editing && rangeProblem ? styles.problem : styles.hint}>
-            {editing && rangeProblem ? rangeProblem : "Picks out temperatures in this range on the thermal video."}
-          </div>
-        </section>
-      )}
-
-      {has("thermal_measure") && (
-        <section className={styles.section} aria-label="Measure">
-          <div className={styles.heading}>Measure</div>
-          <div className={styles.segmented}>
-            <SegmentedControl
-              ariaLabel="Measure"
-              options={MEASURES}
-              value={measure}
-              disabled={!can || pending === "set_metering"}
-              onChange={(mode) => mode !== measure && void run({ kind: "set_metering", mode: mode as ThermalMeasure }, MEASURE_DONE[mode as ThermalMeasure])}
+            <Switch
+              label="Isotherm"
+              checked={Boolean(iso?.enabled)}
+              disabled={!can || rangeProblem !== null}
+              busy={pending === "thermal_isotherm" && !editing}
+              onChange={(enabled) =>
+                void run({ kind: "thermal_isotherm", enabled, low_c: low!, high_c: high! }, enabled ? "Isotherm on" : "Isotherm off")
+              }
             />
           </div>
-          {measure !== "off" && !onThermal && cameraSource !== null ? (
-            <div className={styles.row}>
-              <div className={`${styles.hint} ${styles.grow}`}>Switch the lens to Thermal to measure on the video.</div>
-              {onThermalLens && (
-                <Button size="sm" disabled={!canOperate} onClick={onThermalLens}>
-                  Use thermal lens
-                </Button>
-              )}
-            </div>
-          ) : (
-            <div className={styles.hint}>
-              {measure === "spot"
-                ? canOperate
-                  ? "Click the thermal video to read the temperature at that point."
-                  : "The aircraft reads the temperature at the marked point."
-                : measure === "area"
-                  ? canOperate
-                    ? "Drag a box on the thermal video to read its average, lowest and highest temperature."
-                    : "The aircraft reads the temperatures inside the marked box."
-                  : "Read the temperature of a point or an area on the thermal video."}
-            </div>
-          )}
-
-          {measure === "spot" && (
-            <div className={styles.reading}>
-              <span className={styles.readingValue}>{formatTemp(thermal?.spot?.temp_c ?? null)}</span>
-              <Button
-                size="sm"
-                disabled={!can || pending === "meter_spot"}
-                onClick={() => void run({ kind: "meter_spot", x: 0.5, y: 0.5 }, "Measuring the centre")}
-              >
-                Read the centre
-              </Button>
-            </div>
-          )}
-          {measure === "area" && (
-            <div className={styles.reading}>
-              {thermal?.area ? (
-                <>
-                  <span className={styles.readingValue}>{formatTemp(thermal.area.avg_c)}</span>
-                  <span className={styles.range}>
-                    <span>Min {formatTemp(thermal.area.min_c)}</span>
-                    <span>Max {formatTemp(thermal.area.max_c)}</span>
-                  </span>
-                </>
-              ) : (
-                <span className={styles.readingNote}>No area yet</span>
-              )}
-            </div>
-          )}
-        </section>
+          {editing && rangeProblem && <span className={`${styles.sub} ${styles.problem}`}>{rangeProblem}</span>}
+        </div>
       )}
+
+    </div>
+  );
+}
+
+function Reading({ label, value }: { label: string; value: number | null }) {
+  return (
+    <div className={styles.stat}>
+      <span className={styles.statLabel}>{label}</span>
+      <span className={`${styles.statValue} ${value == null ? styles.empty : ""}`}>{formatTemp(value)}</span>
     </div>
   );
 }

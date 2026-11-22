@@ -20,12 +20,16 @@ const MODES: { value: AvoidanceMode; label: string }[] = [
   { value: "off", label: "Off" },
 ];
 
-const MODE_LABEL: Record<AvoidanceMode, string> = { brake: "Brake", bypass: "Bypass", off: "Off" };
-
 const MODE_HINT: Record<AvoidanceMode, string> = {
-  brake: "The aircraft stops before an obstacle it senses.",
-  bypass: "The aircraft flies around obstacles it senses, where it can, and stops where it can't.",
-  off: "The aircraft does not stop for obstacles. Keep it in sight.",
+  brake: "Stops before obstacles it senses",
+  bypass: "Flies around obstacles where it can, else stops",
+  off: "Won't stop for obstacles: keep the aircraft in sight",
+};
+
+const MODE_DONE: Record<AvoidanceMode, string> = {
+  brake: "Obstacle avoidance set to Brake",
+  bypass: "Obstacle avoidance set to Bypass",
+  off: "Obstacle avoidance off",
 };
 
 const FIX_LABEL: Record<RtkFix, string> = {
@@ -38,6 +42,7 @@ const FIX_LABEL: Record<RtkFix, string> = {
 /**
  * The aircraft's flight-safety settings that MAVLink has no message for:
  * obstacle avoidance and the RTK module. Health warnings go to Messages.
+ * Same one-setting-per-row layout as the Thermal tab.
  */
 export function AircraftPanel({ droneId, aircraft, canOperate, confirm, notify }: AircraftPanelProps) {
   const { state, live, offlineReason, has, pending, send } = aircraft;
@@ -54,59 +59,78 @@ export function AircraftPanel({ droneId, aircraft, canOperate, confirm, notify }
     if (mode === avoidance?.mode) return;
     if (mode === "off") {
       const ok = await confirm({
-        title: "Turn obstacle avoidance off?",
+        title: "Turn off obstacle avoidance?",
         message: (
           <>
-            The aircraft will <strong>not stop for obstacles</strong> in any direction until avoidance is turned back on. Fly
-            with the aircraft in sight.
+            The aircraft <strong>won't stop for obstacles</strong> in any direction until you turn avoidance back on. Keep it
+            in sight.
           </>
         ),
         confirmLabel: "Turn off",
         danger: true,
+        focusCancel: true,
       });
       if (!ok) return;
     }
-    await run({ kind: "obstacle_avoidance", mode }, `Obstacle avoidance set to ${MODE_LABEL[mode]}`);
+    await run({ kind: "obstacle_avoidance", mode }, MODE_DONE[mode]);
   };
 
-  const status = !live ? offlineReason : !canOperate ? "View only: changing settings needs the operator role" : null;
+  const notice = !live ? offlineReason : !canOperate ? "View only: an operator login is needed to change settings" : null;
+  const fixTone = !rtk?.enabled ? "" : rtk.fix === "fixed" ? styles.dotOk : rtk.fix === "none" ? "" : styles.dotWarn;
 
   return (
-    <div className={styles.panel}>
-      <div className={`${styles.status} ${!live ? styles.warn : ""}`} role="status">
-        <span className={`${styles.dot} ${live ? styles.dotOk : ""}`} aria-hidden />
-        {status ?? "Aircraft connected"}
-      </div>
+    <div className={`${styles.panel} ${live ? "" : styles.stale}`}>
+      {notice && (
+        <div className={`${styles.notice} ${!live ? styles.warn : ""}`} role="status">
+          {notice}
+        </div>
+      )}
 
       {has("obstacle_avoidance") && (
-        <section className={styles.section} aria-label="Obstacle avoidance">
-          <div className={styles.heading}>Obstacle avoidance</div>
-          <div className={styles.segmented}>
+        <>
+          <div className={styles.setting}>
+            <span className={styles.label}>Avoidance</span>
             <SegmentedControl
+              size="sm"
               ariaLabel="Obstacle avoidance"
               options={MODES}
               value={avoidance?.mode ?? ""}
               disabled={!can || !avoidance || pending === "obstacle_avoidance"}
               onChange={(mode) => void setAvoidance(mode as AvoidanceMode)}
             />
+            <span className={`${styles.sub} ${avoidance?.mode === "off" ? styles.problem : ""}`}>
+              {avoidance ? MODE_HINT[avoidance.mode] : "Not reported yet"}
+            </span>
           </div>
-          <div className={avoidance?.mode === "off" ? styles.problem : styles.hint}>
-            {avoidance ? MODE_HINT[avoidance.mode] : "The aircraft hasn't reported its avoidance setting yet."}
+          <div className={styles.setting}>
+            <span className={styles.label}>Sensing</span>
+            {avoidance ? (
+              <ul className={styles.directions}>
+                <Direction label="Horizontal" sensing={avoidance.horizontal} />
+                <Direction label="Up" sensing={avoidance.up} />
+                <Direction label="Down" sensing={avoidance.down} />
+              </ul>
+            ) : (
+              <span className={styles.value}>—</span>
+            )}
           </div>
-          {avoidance && (
-            <div className={styles.tiles}>
-              <Direction label="Horizontal" sensing={avoidance.horizontal} />
-              <Direction label="Up" sensing={avoidance.up} />
-              <Direction label="Down" sensing={avoidance.down} />
-            </div>
-          )}
-        </section>
+        </>
       )}
 
       {has("rtk") && (
-        <section className={styles.section} aria-label="RTK">
-          <div className={styles.heading}>
-            RTK positioning
+        <div className={styles.setting}>
+          <span className={styles.label}>RTK</span>
+          <div className={styles.control}>
+            {!rtk ? (
+              <span className={styles.value}>Not reported yet</span>
+            ) : !rtk.present ? (
+              <span className={`${styles.value} ${styles.muted}`}>No module fitted</span>
+            ) : (
+              <span className={`${styles.value} ${rtk.enabled ? "" : styles.muted}`}>
+                {rtk.enabled && <span className={`${styles.dot} ${fixTone}`} aria-hidden />}
+                {rtk.enabled ? `${FIX_LABEL[rtk.fix] ?? rtk.fix}, ${rtk.sats} satellites` : "Off"}
+              </span>
+            )}
             {rtk?.present && (
               <Switch
                 label="RTK positioning"
@@ -117,38 +141,8 @@ export function AircraftPanel({ droneId, aircraft, canOperate, confirm, notify }
               />
             )}
           </div>
-          {!rtk ? (
-            <div className={styles.hint}>The aircraft hasn't reported its RTK module yet.</div>
-          ) : !rtk.present ? (
-            <div className={styles.hint}>No RTK module on the aircraft. Fit one to get centimetre positioning.</div>
-          ) : (
-            <>
-              <div className={styles.tiles}>
-                <div className={styles.tile}>
-                  <span className={styles.tileLabel}>Module</span>
-                  <span className={styles.tileValue}>{rtk.enabled ? "On" : "Off"}</span>
-                </div>
-                <div className={styles.tile}>
-                  <span className={styles.tileLabel}>Fix</span>
-                  <span className={`${styles.tileValue} ${rtk.enabled && rtk.fix !== "fixed" ? styles.tileOff : ""}`}>
-                    {rtk.enabled ? FIX_LABEL[rtk.fix] ?? rtk.fix : "—"}
-                  </span>
-                </div>
-                <div className={styles.tile}>
-                  <span className={styles.tileLabel}>Satellites</span>
-                  <span className={styles.tileValue}>{rtk.enabled ? rtk.sats : "—"}</span>
-                </div>
-              </div>
-              <div className={styles.hint}>
-                {rtk.enabled
-                  ? rtk.fix === "fixed"
-                    ? "Positions are corrected to a few centimetres."
-                    : "Waiting for a fixed solution: positions are GNSS only until then."
-                  : "Turn RTK on to correct positions with the module's data."}
-              </div>
-            </>
-          )}
-        </section>
+          {rtk?.present && rtk.enabled && rtk.fix !== "fixed" && <span className={styles.sub}>GNSS only until the fix is Fixed</span>}
+        </div>
       )}
 
       <p className={styles.note}>
@@ -160,12 +154,10 @@ export function AircraftPanel({ droneId, aircraft, canOperate, confirm, notify }
 
 function Direction({ label, sensing }: { label: string; sensing: boolean }) {
   return (
-    <div className={styles.tile}>
-      <span className={styles.tileLabel}>{label}</span>
-      <span className={`${styles.tileValue} ${sensing ? "" : styles.tileOff}`}>
-        <span className={`${styles.dot} ${sensing ? styles.dotOk : ""}`} aria-hidden />
-        {sensing ? "Sensing" : "Not sensing"}
-      </span>
-    </div>
+    <li className={`${styles.direction} ${sensing ? "" : styles.muted}`}>
+      <span className={`${styles.dot} ${sensing ? styles.dotOk : styles.dotOff}`} aria-hidden />
+      {label}
+      <span className={styles.srOnly}>{sensing ? ": sensing" : ": not sensing"}</span>
+    </li>
   );
 }

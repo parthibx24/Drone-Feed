@@ -158,7 +158,7 @@ Reading a mission returns the frame it was written with. A mission from QGC or M
 
 ## Speaker
 
-For drones with a `speaker` in the config; others answer 404 `{"error": "no speaker"}`. Not MAVLink: the gateway checks the login and role and proxies to the drone's speaker API (dji-bridge for the Mavic 3T), passing its status codes and JSON through. Unreachable speaker service: 502; no answer: 504.
+For drones with a `speaker` (or a `bridge`, whose speaker is `{bridge.api}/speaker`) in the config; others answer 404 `{"error": "no speaker"}`. Not MAVLink: the gateway checks the login and role and proxies to the drone's speaker API (dji-bridge for the Mavic 3T), passing its status codes and JSON through. Unreachable speaker service: 502; no answer: 504; the service refused the gateway's token: 502 (never 401, which would sign the user out).
 
 | Method | Path | Role | Notes |
 |---|---|---|---|
@@ -167,6 +167,53 @@ For drones with a `speaker` in the config; others answer 404 `{"error": "no spea
 | POST | `/drones/{id}/speaker/stop` | O | Stops a message or loop |
 | POST | `/drones/{id}/speaker/volume` | O | `{"volume": 0..100}` |
 | GET | `/drones/{id}/speaker/live` | O | WebSocket, push-to-talk. Send binary PCM (signed 16-bit little-endian, 16 kHz, mono) in real time, then `{"type": "end"}`; receive one `{"type": "result", "outcome": "done"\|"refused"\|"failed", "reason"}`. Frames up to 64 kB, sessions up to 5 minutes. |
+
+## Aircraft features
+
+For drones with a `bridge` in the config (the Mavic 3T); others answer 404 `{"error": "no aircraft features"}`, so the dashboard shows nothing for them. Not MAVLink: the gateway checks the login and role and proxies to the drone's aircraft API (dji-bridge), passing its status codes and JSON through. Unreachable service: 502 `"aircraft service unreachable"`; no answer within 15 s: 504; the service refused the gateway's token: 502.
+
+| Method | Path | Role | Notes |
+|---|---|---|---|
+| GET | `/drones/{id}/features` | V | The aircraft's state, below |
+| POST | `/drones/{id}/aircraft-command` | O | One command, below. Body up to 4 kB, forwarded unchanged. 200 `{"ok": true, "kind"}`; the aircraft's or the pilot's refusal comes back as it is, usually 409 or 502 `{"error": reason}`. Any other `kind` is a 400 that never reaches the bridge: flight, gimbal and camera commands stay on the MAVLink routes above. |
+
+`GET /features`:
+
+```json
+{
+  "features": ["thermal_measure", "thermal_palette", "thermal_gain", "isotherm", "obstacle_avoidance", "rtk", "health"],
+  "thermal": {
+    "palette": "white_hot", "palettes": ["white_hot", "black_hot", "iron_red"], "gain": "high",
+    "isotherm": {"enabled": false, "low_c": 30, "high_c": 40},
+    "measure": "spot",
+    "spot": {"x": 0.62, "y": 0.45, "temp_c": 36.4},
+    "area": null
+  },
+  "avoidance": {"mode": "brake", "horizontal": true, "up": true, "down": true},
+  "rtk": {"present": true, "enabled": true, "fix": "fixed", "sats": 27},
+  "online": true
+}
+```
+
+- `features` lists what the aircraft offers; the dashboard shows a control only when its feature is listed.
+- `thermal`, `avoidance` and `rtk` are `null` when the aircraft has no such thing or hasn't reported it yet. `gain` is `high`, `low` or `auto`; `measure` is `off`, `spot` or `area`; `mode` is `brake`, `bypass` or `off`; `fix` is `none`, `single`, `float` or `fixed`.
+- Positions and sizes (`x`, `y`, `width`, `height`) are fractions (0..1) of the thermal image, from its top-left corner.
+- `online` is false while the aircraft, or the pilot app carrying it, is not connected.
+
+Commands (`kind` plus the fields of that kind):
+
+| `kind` | Fields |
+|---|---|
+| `set_metering` | `mode`: `off`, `spot` or `area` |
+| `meter_spot` | `x`, `y` |
+| `meter_area` | `x`, `y`, `width`, `height` |
+| `thermal_palette` | `palette`: one of `thermal.palettes` |
+| `thermal_gain` | `gain`: `high` or `low` |
+| `thermal_isotherm` | `enabled`, `low_c`, `high_c` |
+| `obstacle_avoidance` | `mode`: `brake`, `bypass` or `off` |
+| `rtk_enable` | `enabled` |
+
+Each command is audited with its kind (`msg="aircraft command" kind=...`) as well as by the usual audit line.
 
 ## Video and recordings
 

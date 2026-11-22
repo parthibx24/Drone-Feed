@@ -25,6 +25,7 @@ Every drone page shares one live WebSocket ([`context/DroneContext.tsx`](../fron
 | Gimbal, zoom, record | disabled | ✓ |
 | Flight panel, map Go to | "View only" notice | ✓ |
 | Speaker: say, loop, stop, volume, talk | status only | ✓ |
+| Thermal and Aircraft tabs, measuring on the video | readings and settings only | ✓ |
 | Edit, write or start missions; write parameters | read-only | ✓ |
 
 The UI only hides or disables controls; the **server enforces roles** on every request.
@@ -41,6 +42,7 @@ These ask for confirmation first:
 - Delete the mission on the drone
 - Start mission
 - Write a parameter
+- Turn obstacle avoidance off
 
 Land, RTL and Pause act **immediately**, because they are what you reach for in an emergency.
 
@@ -56,6 +58,9 @@ Every command reports the drone's real answer:
 | **Flight panel** (sidebar, "Flight" tab) | Mode selector plus Set mode, Arm and Disarm, takeoff altitude plus Take off, then Land, RTL, Pause and Resume |
 | **Recordings tab** | The original "Recent Recordings" list (the full library is still under the folder button on the video) |
 | **Speaker tab** (drones with a speaker only) | Type a message in English or বাংলা and **Say** it once or **Loop** it; **Stop**; volume slider; **Hold to talk** (or hold **T**) streams the computer's microphone live, with a level meter. The status line says why it can't play (no speaker, pilot app offline, StarWatch control not granted). The microphone needs the dashboard over HTTPS. Code: [`components/speaker`](../frontend/src/components/speaker/), [`services/MicStreamer.ts`](../frontend/src/services/MicStreamer.ts) (AudioWorklet resampling to 16 kHz). |
+| **Thermal tab** (drones whose aircraft API offers it) | Palette, gain High / Low, isotherm on/off with a °C range, and measure Off / Spot / Area with the current reading. With measuring on and the thermal lens on the video, a click on the picture reads that point (a reticle with "36.4 °C") and a drag reads an area (average, lowest, highest). Clicks are mapped to the picture itself, not the letterboxed frame (the player reports the video's size); clicks on the black bars do nothing. "Read the centre" measures without a pointer. When the aircraft colours the picture itself, the dashboard's own thermal filter is off. Code: [`components/aircraft`](../frontend/src/components/aircraft/), [`utils/imageRect.ts`](../frontend/src/utils/imageRect.ts). |
+| **Aircraft tab** (drones whose aircraft API offers it) | Obstacle avoidance Brake / Bypass / Off (Off asks first) and whether each direction is sensing; RTK module on/off, fix and satellites; a link to Messages, where the aircraft's health warnings appear. |
+| Both | State from `GET /features` every 2 s ([`hooks/useAircraftFeatures.ts`](../frontend/src/hooks/useAircraftFeatures.ts)). Controls are off, with the reason, while the aircraft or the service is offline, and the video marks disappear rather than show old temperatures. The tabs' code is a separate chunk, loaded only for drones that have them. |
 | **Go to** on the map | Appears for operators while the drone is armed and online. Click Go to, click the map, confirm: the drone flies there at its current altitude (GUIDED). |
 | **Gimbal** | Hold-to-move now streams over the WebSocket at about 7 Hz. Releasing, closing the tab or losing the link stops the gimbal (the bridge's dead-man). |
 

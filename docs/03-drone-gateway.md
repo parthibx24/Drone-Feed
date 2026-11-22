@@ -107,9 +107,26 @@ ArduPilot applies these rates to the serial port the Pi uses, so every consumer 
 | `limits.max_speed_m_s` | `15` | Goto, speed and mission speed cap |
 | `limits.max_mission_items` | `500` | |
 | `stream_rates` | table above | Message name → Hz |
-| `drones[]` | (required) | `id`, `name`, `mavlink` (endpoint), optional `system_id`, `stream_prefix` (go2rtc `<prefix>_*` streams, default the id), optional `speaker` (below) |
-| `drones[].speaker.api` | none | A loudspeaker MAVLink can't reach: the base URL of its speaker API, which the gateway proxies the dashboard's Speaker tab to. For the Mavic 3T: `http://dji-bridge:8090/api/v1/aircraft/<SERIAL>/speaker`. No `speaker` = no Speaker tab. |
+| `drones[]` | (required) | `id`, `name`, `mavlink` (endpoint), optional `system_id`, `stream_prefix` (go2rtc `<prefix>_*` streams, default the id), optional `bridge` and `speaker` (below) |
+| `drones[].bridge.api` | none | The aircraft's API beyond MAVLink: thermal measurement, palette, gain and isotherm, obstacle avoidance, RTK (the dashboard's Thermal and Aircraft tabs) and the speaker. For the Mavic 3T: `http://dji-bridge:8090/api/v1/aircraft/<SERIAL>`. No `bridge` = no such tabs. |
+| `drones[].bridge.token` | (required with `api`) | Sent upstream as `Authorization: Bearer`; use `${VAR}` (dji-bridge's `api.token`). Browsers never see it. |
+| `drones[].speaker.api` | `{bridge.api}/speaker` | A loudspeaker MAVLink can't reach: the base URL of its speaker API, which the gateway proxies the dashboard's Speaker tab to. Only needed without a `bridge`, or to point the speaker elsewhere. No `speaker` and no `bridge` = no Speaker tab. |
 | `drones[].speaker.token` | (required with `api`) | Sent upstream as `Authorization: Bearer`; use `${VAR}` (dji-bridge's `api.token`). Browsers never see it. |
+
+### From `speaker` to `bridge`
+
+A drone configured with only `speaker` keeps working as before: Speaker tab, no aircraft features. To give it the Thermal and Aircraft tabs, name the aircraft API once and drop the speaker entry, which then follows the bridge:
+
+```yaml
+# before
+- id: mavic3t
+  speaker: {api: http://dji-bridge:8090/api/v1/aircraft/<SERIAL>/speaker, token: "${BRIDGE_API_TOKEN}"}
+# after
+- id: mavic3t
+  bridge: {api: http://dji-bridge:8090/api/v1/aircraft/<SERIAL>, token: "${BRIDGE_API_TOKEN}"}
+```
+
+Keeping both is fine too: `speaker` then wins for the speaker. The bridge must offer `GET /features` and `POST /commands` for the new tabs (dji-bridge does from the release that adds them); until it does, the tabs stay hidden because the gateway passes the bridge's 404 through.
 
 Endpoint syntax for `drones[].mavlink`:
 

@@ -166,7 +166,7 @@ export function SpeakerPanel({ droneId, speaker, canOperate, notify }: SpeakerPa
       </div>
 
       <div className={styles.row}>
-        <SegmentedControl ariaLabel="Language" options={LANGS} value={lang} onChange={(v) => setLang(v as SpeakerLang)} disabled={!ready} />
+        <SegmentedControl size="sm" ariaLabel="Language" options={LANGS} value={lang} onChange={(v) => setLang(v as SpeakerLang)} disabled={!ready} />
       </div>
       <textarea
         className={styles.text}

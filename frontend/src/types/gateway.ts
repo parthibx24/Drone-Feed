@@ -61,6 +61,56 @@ export interface DroneSummary {
   mode: string;
   stream_prefix: string;
   telemetry: Snapshot;
+  capabilities: Capabilities;
+}
+
+/** How the gateway talks to the drone (drones[].autopilot). */
+export type Autopilot = "ardupilot" | "dji" | "mavlink";
+
+/**
+ * What a drone offers. The dashboard shows a control only when its feature
+ * is listed; the gateway refuses routes whose feature the drone's profile
+ * rules out (server/gateway/capabilities.go).
+ */
+export type Feature =
+  | "arm"
+  | "set_mode"
+  | "takeoff"
+  | "land"
+  | "rtl"
+  | "pause"
+  | "resume"
+  | "goto"
+  | "speed"
+  | "roi"
+  | "reboot"
+  | "mission"
+  | "mission_start"
+  | "mission_jump"
+  | "params"
+  | "gimbal"
+  | "zoom"
+  | "photo"
+  | "camera_video"
+  | "camera_source"
+  | "recording"
+  | "speaker"
+  | "aircraft"
+  | "ai"
+  | "raw_command";
+
+/** GET /drones/{id}/capabilities, also pushed over the WebSocket when it changes. */
+export interface Capabilities {
+  autopilot: Autopilot;
+  /** Aircraft model when its link reports one (DJI: "M3T"). */
+  model?: string;
+  features: Feature[];
+  /** Flight modes an operator may select (only with set_mode). */
+  modes: string[];
+  mission_items: MissionItemType[];
+  mission_alt_frames: Array<"relative" | "terrain" | "absolute">;
+  /** Why fewer features than usual are offered, to show the operator. */
+  note?: string;
 }
 
 export interface StatusText {
@@ -133,6 +183,7 @@ export type DroneEvent =
   | { type: "statustext"; data: StatusText }
   | { type: "link"; data: { online: boolean } }
   | { type: "mission_item_reached"; data: { seq: number } }
+  | { type: "capabilities"; data: Capabilities }
   | { type: "detections"; data: DetectionFrame }
   | { type: "ai_event"; data: AIEvent }
   | { type: "ai_follow"; data: AIFollowState };

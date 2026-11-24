@@ -2,6 +2,7 @@ import type {
   AircraftCommand,
   AircraftFeatures,
   CameraSource,
+  Capabilities,
   CamerasResponse,
   DroneSummary,
   Limits,
@@ -44,6 +45,7 @@ export const api = {
   snapshot: (id: string) => request<Snapshot>(drone(id)),
   statusTexts: (id: string) => request<StatusText[]>(drone(id, "/statustext")),
   modes: (id: string) => request<string[]>(drone(id, "/modes")),
+  capabilities: (id: string) => request<Capabilities>(drone(id, "/capabilities")),
   limits: () => request<Limits>("/api/v1/limits"),
 
   // --- flight

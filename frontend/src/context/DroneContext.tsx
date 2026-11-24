@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { api } from "../services/api";
 import { DroneSocket } from "../services/DroneSocket";
 import type { AIEvent, AIFollowState, DetectionFrame } from "../types/ai";
-import type { DroneEvent, DroneSummary, Snapshot, StatusText } from "../types/gateway";
+import type { Capabilities, DroneEvent, DroneSummary, Feature, Snapshot, StatusText } from "../types/gateway";
 
 const MAX_MESSAGES = 300;
 const MAX_AI_EVENTS = 200;
@@ -20,6 +20,10 @@ interface DroneState {
   /** Static info (name, stream prefix); null until loaded, undefined if unknown. */
   info: DroneSummary | null | undefined;
   snapshot: Snapshot | null;
+  /** What the drone offers; null until known. Changes live (a DJI link switching apps). */
+  capabilities: Capabilities | null;
+  /** Whether the drone offers a feature (false while capabilities are unknown). */
+  can: (feature: Feature) => boolean;
   /** WebSocket to the gateway is up. */
   connected: boolean;
   messages: StatusText[];
@@ -40,6 +44,7 @@ const DroneContext = createContext<DroneState | null>(null);
 export function DroneProvider({ id, children }: { id: string; children: ReactNode }) {
   const [info, setInfo] = useState<DroneSummary | null | undefined>(null);
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
+  const [capabilities, setCapabilities] = useState<Capabilities | null>(null);
   const [connected, setConnected] = useState(false);
   const [messages, setMessages] = useState<StatusText[]>([]);
   const [lastReachedSeq, setLastReachedSeq] = useState<number | null>(null);
@@ -52,13 +57,20 @@ export function DroneProvider({ id, children }: { id: string; children: ReactNod
     let cancelled = false;
     setInfo(null);
     setSnapshot(null);
+    setCapabilities(null);
     setMessages([]);
     setDetections({});
     setFollow(NO_FOLLOW);
     setLiveEvents([]);
     api
       .drones()
-      .then((list) => !cancelled && setInfo(list.find((d) => d.id === id)))
+      .then((list) => {
+        if (cancelled) return;
+        const found = list.find((d) => d.id === id);
+        setInfo(found);
+        // The WebSocket's own "capabilities" event may already have arrived.
+        if (found?.capabilities) setCapabilities((c) => c ?? found.capabilities);
+      })
       .catch(() => !cancelled && setInfo(undefined));
     api
       .statusTexts(id)
@@ -72,6 +84,9 @@ export function DroneProvider({ id, children }: { id: string; children: ReactNod
           break;
         case "statustext":
           setMessages((list) => [...list, event.data].slice(-MAX_MESSAGES));
+          break;
+        case "capabilities":
+          setCapabilities(event.data);
           break;
         case "mission_item_reached":
           setLastReachedSeq(event.data.seq);
@@ -106,11 +121,15 @@ export function DroneProvider({ id, children }: { id: string; children: ReactNod
     socket.current?.send({ type: "gimbal_rate", pitch_deg_s: pitchDegS, yaw_deg_s: yawDegS });
   }, []);
 
+  const can = useCallback((feature: Feature) => capabilities?.features.includes(feature) ?? false, [capabilities]);
+
   const value = useMemo(
     () => ({
       id,
       info,
       snapshot,
+      capabilities,
+      can,
       connected,
       messages,
       lastReachedSeq,
@@ -120,7 +139,7 @@ export function DroneProvider({ id, children }: { id: string; children: ReactNod
       setFollow,
       sendGimbalRate,
     }),
-    [id, info, snapshot, connected, messages, lastReachedSeq, detections, follow, liveEvents, sendGimbalRate],
+    [id, info, snapshot, capabilities, can, connected, messages, lastReachedSeq, detections, follow, liveEvents, sendGimbalRate],
   );
   return <DroneContext.Provider value={value}>{children}</DroneContext.Provider>;
 }

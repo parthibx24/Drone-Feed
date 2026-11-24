@@ -11,6 +11,8 @@ Run `go test ./...`. Add `-race` to also check for data races.
 | Login and web | [`server/gateway/auth_test.go`](../server/gateway/auth_test.go) | Login, logout, cookie flags, CSRF header required for cookie writes, viewer vs operator, tampered and revoked sessions, login rate limit, API tokens, open mode, UI serving with client-side routes, camera discovery, recording ingest URLs |
 | Recorder | [`server/recorder/recorder_test.go`](../server/recorder/recorder_test.go) | Port of `recorder.py`, using fake ffmpeg/ffprobe: wait → record → stop → list → delete, cancel while waiting, timeout without frames (no file left behind), path traversal blocked, unsafe names sanitised |
 | End-to-end | [`server/gateway/integration_test.go`](../server/gateway/integration_test.go) | The full chain, gateway → simulated autopilot/router → real gimbal-bridge → fake C12 socket, driven through the HTTP API |
+| AI, gateway side | [`server/gateway/ai_test.go`](../server/gateway/ai_test.go) | Ground position geometry (heading, camera yaw, near-horizon and straight-down cases), follow rates and dead band, gimbal angle estimate with the bridge's dead-man time, event store (filters, path-safe ids, retention on reload), and the whole HTTP flow with fake go2rtc, webhook and Claude servers: ingest token kept separate from API tokens, targets, detections and counts, events with snapshots, alert cooldown, follow and operator override, the Claude request (model, image, refusal fallbacks), AI off |
+| AI, detector | [`ai/detector/tests/`](../ai/detector/tests/) | Label normalisation, model metadata, NMS (including tile-edge duplicates), tracker (ids kept, fast small objects matched by distance, one event per object, groups never mixed, expiry), and a real model run on odd frame sizes. Run with `python -m unittest discover -s tests` in `ai/detector`; the Docker build runs them too. |
 
 ### What the end-to-end test covers
 
@@ -48,6 +50,17 @@ To work on the UI or try the system without a drone, run each of these in its ow
 **Frontend hot reload:** while the server from step 3 runs, run `npm run dev` in `frontend/` and open `http://localhost:5173`. Vite proxies `/api` (including the WebSocket) to port 8091.
 
 `sim-vehicle` takes `-prearm-fail` to rehearse error handling in the UI. It is not a flight simulator: it moves in straight lines and has no physics.
+
+### AI sandbox
+
+Add to the sandbox above:
+
+- an `ai:` block in the gateway config (`enabled: true`, an `ingest_token`, and `run_when: always` so detection runs without arming);
+- the detector, reading video files instead of go2rtc: in `ai/detector`, run `AI_INGEST_TOKEN=<token> GATEWAY_URL=http://127.0.0.1:8091 SOURCE_TEMPLATE='/path/to/videos/{stream}.mp4' MODEL_VISIBLE=models/visible.onnx MODEL_THERMAL=models/thermal.onnx python -m detector`. The files must be named after the drone's streams, for example `kotowali_camera.mp4` and `kotowali_thermal.mp4`.
+
+Arm, take off and point the gimbal down (`POST /gimbal/attitude {"pitch_deg": -45}`) before starting the detector, or events will have no ground position.
+
+To check a model on your own footage without the rest of the system: `python -m detector file <image or video> --kind visible|thermal --out annotated.mp4 [--tiles 2]`.
 
 ## ArduPilot SITL (recommended before the first real flight)
 

@@ -16,6 +16,7 @@ export function DroneTopBar({ extraLinks = [] }: { extraLinks?: LinkStatus[] }) 
         { to: `${base}/mission`, label: "Mission" },
         { to: `${base}/params`, label: "Parameters" },
         { to: `${base}/messages`, label: "Messages" },
+        { to: `${base}/detections`, label: "Detections" },
       ]}
       links={[
         { label: "Server", state: connected ? "ok" : "checking" },

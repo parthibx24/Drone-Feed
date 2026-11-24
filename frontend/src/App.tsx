@@ -2,6 +2,7 @@ import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation, useParams 
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { DroneProvider } from "./context/DroneContext";
 import { Dashboard } from "./pages/Dashboard/Dashboard";
+import { DetectionsPage } from "./pages/Detections/DetectionsPage";
 import { FleetPage } from "./pages/Fleet/FleetPage";
 import { LoginPage } from "./pages/Login/LoginPage";
 import { MessagesPage } from "./pages/Messages/MessagesPage";
@@ -40,6 +41,7 @@ export function App() {
               <Route path="mission" element={<MissionPage />} />
               <Route path="params" element={<ParamsPage />} />
               <Route path="messages" element={<MessagesPage />} />
+              <Route path="detections" element={<DetectionsPage />} />
             </Route>
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />

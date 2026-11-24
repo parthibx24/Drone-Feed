@@ -1,4 +1,4 @@
-# StarWatch central server on Dokploy: branch feature/unified-server.
+# StarWatch central server on Dokploy: branch feature/multi-drone.
 # Paste into the Dokploy Compose app (Provider: Raw). Steps: deploy/dokploy/README.md
 services:
   tailscale:
@@ -93,7 +93,7 @@ services:
       - recordings:/recordings
     restart: "no"
 
-  # drone-gateway + React UI. Builds from branch feature/unified-server; see README.md to pin a commit.
+  # drone-gateway + React UI. Builds from branch feature/multi-drone; see README.md to pin a commit.
   dashboard:
     container_name: drone-dashboard
     network_mode: "service:tailscale"
@@ -104,11 +104,33 @@ services:
         condition: service_completed_successfully
     environment:
       - SESSION_SECRET=${SESSION_SECRET:?set SESSION_SECRET in the Environment tab}
+      - AI_INGEST_TOKEN=${AI_INGEST_TOKEN:?set AI_INGEST_TOKEN in the Environment tab}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
     volumes:
       - ../files/gateway.yaml:/config/gateway.yaml:ro   # Dokploy file mount "gateway.yaml"
       - recordings:/recordings
     build:
-      context: https://github.com/parthibx24/Drone-Feed.git#feature/unified-server
+      context: https://github.com/parthibx24/Drone-Feed.git#feature/multi-drone
+    restart: unless-stopped
+
+  # Object detector (ai/detector). Reads video from go2rtc and reports to the
+  # dashboard, both on 127.0.0.1 in the tailscale network namespace.
+  detector:
+    container_name: drone-detector
+    network_mode: "service:tailscale"
+    depends_on:
+      - dashboard
+    environment:
+      - AI_INGEST_TOKEN=${AI_INGEST_TOKEN:?set AI_INGEST_TOKEN in the Environment tab}
+      # 1 = whole frame. 2 = also left/right halves: finds about twice as many
+      # small objects on the visible camera, at about 3x the CPU.
+      - TILES=1
+    build:
+      context: https://github.com/parthibx24/Drone-Feed.git#feature/multi-drone:ai/detector
+    # The server has 2 vCPUs: detection must never starve the gateway or go2rtc.
+    cpus: "1.0"
+    mem_limit: 1g
     restart: unless-stopped
 
 volumes:

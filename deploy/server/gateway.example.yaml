@@ -66,3 +66,27 @@ drones:
     mavlink: udp:100.111.237.109:14560
     # go2rtc streams named "<stream_prefix>_*" are this drone's cameras.
     stream_prefix: kotowali
+
+# --- AI (optional, docs/09-ai.md) ---------------------------------------------
+# Needs the "detector" service from docs/05-deployment.md §7. Every sub-block is
+# optional; leaving one out turns that feature off.
+# ai:
+#   enabled: true
+#   ingest_token: ${AI_INGEST_TOKEN}       # same value as the detector's AI_INGEST_TOKEN
+#   run_when: auto                         # auto: while armed or someone watches | always
+#   fps: 3
+#   min_confidence: 0.35
+#   camera:                                # for ground position estimates; check the C12 specs
+#     visible_hfov_deg: 62
+#     thermal_hfov_deg: 42
+#   alerts:
+#     labels: [person]
+#     cooldown_s: 120
+#     telegram: { bot_token: "${TELEGRAM_BOT_TOKEN}", chat_id: "-1001234567890" }
+#   auto_record:
+#     labels: [person]
+#     stop_after_s: 30
+#   vision:                                # "Analyze frame" with Claude
+#     api_key: ${ANTHROPIC_API_KEY}
+#     model: claude-opus-5-5
+#     effort: medium

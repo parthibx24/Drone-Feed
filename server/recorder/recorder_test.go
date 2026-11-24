@@ -106,7 +106,13 @@ func TestRecordStopListDelete(t *testing.T) {
 		t.Fatalf("status all: %v", all)
 	}
 
+	// "recording" can be reported a moment before ffmpeg has created the file,
+	// and the listing only shows files that exist.
 	list := m.List("", "time", "desc")
+	for deadline := time.Now().Add(2 * time.Second); len(list) == 0 && time.Now().Before(deadline); {
+		time.Sleep(20 * time.Millisecond)
+		list = m.List("", "time", "desc")
+	}
 	if len(list) != 1 || !list[0].IsActive || list[0].DroneName != "kotowali" {
 		t.Fatalf("active listing: %+v", list)
 	}

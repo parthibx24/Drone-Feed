@@ -39,3 +39,24 @@ drones:
   #   name: Shahporan Thana SMP
   #   mavlink: udp:100.115.37.32:14560
   #   stream_prefix: Shahporan-Thana-SMP
+
+# AI detection (docs/09-ai.md). Remove alerts / auto_record / vision to turn
+# those features off.
+ai:
+  enabled: true
+  ingest_token: ${AI_INGEST_TOKEN}
+  run_when: auto            # only while a drone is armed or someone watches it
+  fps: 3
+  min_confidence: 0.35
+  # camera: { visible_hfov_deg: 62, thermal_hfov_deg: 42 }   # set the C12's real values
+  alerts:
+    labels: [person]
+    cooldown_s: 120
+    telegram: { bot_token: "${TELEGRAM_BOT_TOKEN}", chat_id: "REPLACE-WITH-CHAT-ID" }
+  auto_record:
+    labels: [person]
+    stop_after_s: 30
+  vision:
+    api_key: ${ANTHROPIC_API_KEY}
+    model: claude-opus-5-5
+    effort: medium

@@ -1,6 +1,6 @@
-# Deploying `feature/unified-server` on Dokploy
+# Deploying `feature/multi-drone` on Dokploy
 
-This branch is the Go drone-gateway (login, flight control, missions, parameters, recording) serving the React UI. The files here deploy the whole central server: Tailscale, go2rtc, Loki, Grafana, the file manager and the dashboard.
+This branch is the Go drone-gateway plus AI detection (people and vehicles, thermal, events, alerts, Analyze frame, follow), with StarWatch drones and DJI aircraft (the Mavic 3T, through dji-bridge) in one dashboard. The files here deploy the whole central server: Tailscale, go2rtc, Loki, Grafana, the file manager and the dashboard plus the AI detector.
 
 | File | Use |
 |---|---|
@@ -17,9 +17,13 @@ This branch is the Go drone-gateway (login, flight control, missions, parameters
    | `CLOUDCMD_PASSWORD` | yes | Password for the file manager (Cloud Commander), user `admin` |
    | `TS_AUTHKEY` | first deploy only | Tailscale auth key; leave empty while the `drone-tailnet` volume holds a logged-in node |
    | `SESSION_SECRET` | yes | Signs login cookies: `openssl rand -hex 32` |
+   | `AI_INGEST_TOKEN` | yes | Shared by the dashboard and the detector: `openssl rand -hex 24` |
+   | `ANTHROPIC_API_KEY` | no | Turns on "Analyze frame" |
+   | `TELEGRAM_BOT_TOKEN` | no | Telegram alerts (also set `chat_id` in `gateway.yaml`) |
 
 3. **File mount:** Advanced → Mounts → Add → File Mount, path `gateway.yaml`, content from `gateway.example.yaml`. Replace:
-   - `REPLACE-WITH-BCRYPT-HASH`: run `drone-gateway hash-password` in the `drone-dashboard` terminal (Open Terminal, shell `sh`) if a gateway version is already running. Otherwise run it on any machine with Docker: `docker run --rm -it --entrypoint drone-gateway $(docker build -q https://github.com/parthibx24/Drone-Feed.git#feature/unified-server) hash-password`.
+   - `REPLACE-WITH-BCRYPT-HASH`: run `drone-gateway hash-password` in the `drone-dashboard` terminal (Open Terminal, shell `sh`) if a gateway version is already running. Otherwise run it on any machine with Docker: `docker run --rm -it --entrypoint drone-gateway $(docker build -q https://github.com/parthibx24/Drone-Feed.git#feature/multi-drone) hash-password`.
+   - `REPLACE-WITH-CHAT-ID`: the Telegram group's chat id, or delete the `telegram` line. Delete the whole `alerts` block if you don't want alerts.
    - Check the drone entries (Tailscale IP and `stream_prefix`).
 
 4. **Domains tab** (unchanged between branches):
@@ -36,10 +40,11 @@ This branch is the Go drone-gateway (login, flight control, missions, parameters
 
 5. **Deploy**, then open the `drone-dashboard` logs.
    Expect `drone online` for each drone and no warning about open auth.
+   Expect `AI enabled` there, and `loaded visible model` / `loaded thermal model` in the `drone-detector` logs. The dashboard's AI tab should show **Detecting** while you watch a drone.
 
 ## Building from the branch or from a commit
 
-The compose builds from the **latest commit of `feature/unified-server`** at deploy time. For production, pin a commit so a later push cannot change what runs: replace `#feature/unified-server` with `#<commit hash>`.
+The compose builds from the **latest commit of `feature/multi-drone`** at deploy time. For production, pin a commit so a later push cannot change what runs: replace `#feature/multi-drone` with `#<commit hash>` in both `dashboard` and `detector` (keep `:ai/detector` after the detector's hash).
 
 ## Switching between branches
 
@@ -51,5 +56,6 @@ Each deployable branch has its own `deploy/dokploy/`. To switch, paste that bran
 | `ui-redesign` | Python Drone-Feed, React UI | the old drone-agent (port 8080) |
 | `feature/unified-server` | drone-gateway | mavlink-router + gimbal-bridge |
 | `feature/ai-detection` | drone-gateway + detector | mavlink-router + gimbal-bridge |
+| `feature/multi-drone` | drone-gateway + detector, StarWatch drones and DJI aircraft side by side | StarWatch drones: mavlink-router + gimbal-bridge. DJI aircraft: dji-bridge (Mavic-3t-System) |
 
 Going back to a Python branch needs no clean-up: its container runs as root and can still write the recordings volume.

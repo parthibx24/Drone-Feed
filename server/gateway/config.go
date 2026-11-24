@@ -33,6 +33,8 @@ type Config struct {
 	Go2RTC Go2RTCConfig `yaml:"go2rtc"`
 	// RecordingsDir stores server-side recordings.
 	RecordingsDir string `yaml:"recordings_dir"`
+	// AI: object detection and the features built on it (docs/09-ai.md).
+	AI AIConfig `yaml:"ai"`
 }
 
 // AuthConfig holds web users and session settings.
@@ -279,7 +281,7 @@ func (c *Config) Normalize() error {
 			}
 		}
 	}
-	return nil
+	return c.AI.normalize(c.RecordingsDir)
 }
 
 // checkUpstream trims an upstream API's URL and token in place and checks

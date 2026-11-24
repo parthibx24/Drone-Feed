@@ -1,0 +1,30 @@
+# Adds AI detection to the central StarWatch compose (docs/05-deployment.md §7).
+# Paste the "detector" service next to "dashboard", and add the three
+# environment lines to "dashboard". Values come from the Dokploy Environment tab.
+
+services:
+  dashboard:
+    # ...existing keys unchanged; add to its environment:
+    environment:
+      - SESSION_SECRET=${SESSION_SECRET}
+      - AI_INGEST_TOKEN=${AI_INGEST_TOKEN}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+
+  detector:
+    container_name: drone-detector
+    # Same network namespace as go2rtc and the gateway: both are on 127.0.0.1.
+    network_mode: "service:tailscale"
+    depends_on:
+      - dashboard
+    environment:
+      - AI_INGEST_TOKEN=${AI_INGEST_TOKEN}
+      # 1 = whole frame (default). 2 = also left/right halves: finds about twice
+      # as many small objects on the visible camera, at about 3x the CPU.
+      - TILES=1
+    build:
+      context: https://github.com/parthibx24/Drone-Feed.git#<commit>:ai/detector
+    # The server has 2 vCPUs. Never let detection starve the gateway or go2rtc.
+    cpus: "1.0"
+    mem_limit: 1g
+    restart: unless-stopped

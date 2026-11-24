@@ -12,7 +12,10 @@ interface VideoFeedProps {
   onSelect: (stream: string) => void;
   /** The picture's own size in pixels, while it plays. */
   onVideoSize?: (stream: string, width: number, height: number) => void;
-  /** Drawn over the main feed, inside it (so it stays in full screen). */
+  /**
+   * Drawn over the video, inside the feed (so it stays in full screen) and
+   * outside the thermal filter: detection boxes, thermal readouts.
+   */
   overlay?: ReactNode;
 }
 
@@ -43,7 +46,7 @@ export function VideoFeed({ feed, go2rtcUrl, isMain, rootRef, onPlayingChange, o
   return (
     <div ref={rootRef} className={isMain ? styles.main : styles.inset}>
       <div ref={frameRef} className={`${styles.frame} ${feed.thermal ? styles.thermal : ""}`} />
-      {isMain && overlay}
+      {overlay}
       {status && <div className={styles.status}>{status}</div>}
       {!isMain && (
         <button

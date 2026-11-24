@@ -1,0 +1,34 @@
+.root {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.svg {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+}
+
+.clickable {
+  cursor: pointer;
+  pointer-events: all;
+}
+
+.clickable:hover,
+.clickable:focus-visible {
+  stroke-width: 3;
+  outline: none;
+}
+
+.label {
+  pointer-events: none;
+}
+
+.labelText {
+  fill: #090c08;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 700;
+}

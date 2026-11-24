@@ -57,6 +57,9 @@ func (g *Gateway) serveWS(w http.ResponseWriter, r *http.Request, d *Drone) {
 				continue
 			}
 			if in.Type == "gimbal_rate" && a.role == roleOperator {
+				if in.PitchDegS != 0 || in.YawDegS != 0 {
+					g.operatorGimbal(d)
+				}
 				movedGimbal.Store(true)
 				_ = d.GimbalRate(in.PitchDegS, in.YawDegS)
 			}

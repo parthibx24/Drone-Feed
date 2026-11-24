@@ -69,10 +69,46 @@
 4. **Sessions cannot be revoked one by one.** Logout clears the browser cookie, and sessions expire after `session_ttl`. Removing a user from the config ends that user's sessions immediately.
 5. **One gateway per tailnet.** QGC alongside it should use MAVLink system ID 254.
 
+## Deployed
+
+| What | Notes |
+|---|---|
+| **Server switch on Dokploy (2026-11-11)** | The `dashboard` service of the Dokploy compose app runs commit `fb0a659`. `gateway.yaml` is a Dokploy file mount (`../files/gateway.yaml`), and a one-shot `recordings-perms` service hands the recordings volume to uid 10001. Login, video and telemetry work for star9. Its go2rtc streams are `Kotowali-Thana-SMP_*`, so that is its `stream_prefix`. The old `kotowali_*` streams point to a Pi that is no longer on the tailnet. |
+
+| **Direct Tailscale path to the drones (2026-11-11)** | The server's tailscaled ran behind Docker's NAT on a random port, so every connection to the server, including star9's video and MAVLink, went through the DERP relay in Mumbai (one TCP connection, limited throughput, stalls on 4G loss). `TS_TAILSCALED_EXTRA_ARGS=--port=40000` on the `tailscale` service (with `40000:40000/udp` published) fixed it. The server now reaches star9 directly over its 4G address, 66 ms per ping (the relay path took about 140 ms). |
+
+Open after the switch:
+- Behind Traefik every login comes from the proxy's address, so failed logins on a username lock it for everyone for a short while. The fix is to trust `X-Forwarded-For` from the proxy.
+- The UI shows the autopilot's sea-level altitude even without a GPS fix, where it is meaningless (8393.8 m was seen indoors).
+- The go2rtc API on the public `cams…` domain has no login.
+- After the gateway restarted, star9's MAVLink took a while to come back, and it is not known what brought it back. If it happens again, check the gateway logs and `tailscale ping` from the `drone-tailnet` container.
+
+## AI detection (branch `feature/ai-detection`, 2026-11-11, not deployed)
+
+See [09-ai.md](09-ai.md). Built: the detector service, gateway endpoints, event log with snapshots, ground position estimates, Telegram and webhook alerts, auto-record, "Analyze frame" with Claude, click-to-follow, and the UI (boxes on video, AI tab, map markers, Detections page).
+
+| Verified | How |
+|---|---|
+| Gateway AI logic | `ai_test.go`, with fake go2rtc, webhook and Claude servers |
+| Detector logic, both models, H.265 decoding | Unit tests; the x86_64 Docker image built and ran them, and decoded an H.265 clip |
+| Whole chain on a laptop | sim-vehicle + gimbal-bridge + gateway + detector on test videos: 42 events with snapshots and ground positions, webhook alerts with cooldown, follow started and cancelled by gimbal input, UI checked in headless Chrome |
+| Thermal accuracy | HIT-UAV test split: person precision/recall 0.88/0.88 |
+
+| Not verified | Why it matters |
+|---|---|
+| Accuracy on C12 footage | Both models were trained on other cameras |
+| C12 field of view (`ai.camera`) and gimbal angle signs | Ground positions depend on both; the angle signs are also still open for the bench test |
+| Detector CPU on the server | Measured on a Mac only; watch `docker stats` after deploying |
+| "Analyze frame" against the real Claude API | Tested against a fake server only; needs an API key |
+| Telegram delivery | Same code path as the tested webhook, but never sent to a real bot |
+
+Not built: fire/smoke detection (needs a separate model), flight-log health reports, map stitching (needs mission photo triggering).
+
 ## Next steps, in order
 
 1. Link-loss failsafe is handled by the RC link for now (`FS_GCS_ENABLE` stays 0). Give each drone a unique `MAV_SYSID` before a second drone is added.
 2. ~~Validate the flight commands against ArduPilot SITL 4.7~~ (done 2026-11-11, except jump to mission item).
 3. ~~Do the Pi transition install on star9~~ (done 2026-11-11). Re-run it with the fixed bundle, then do the camera and gimbal bench test (props off).
-4. Switch the server's `dashboard` service to this branch ([05-deployment.md §4](05-deployment.md#4-server-switch-the-dashboard-service)).
+4. ~~Switch the server's `dashboard` service to this branch~~ (done 2026-11-11 on Dokploy; see Deployed above).
 5. Do the Pi final install (retire the old agent).
+6. Deploy AI ([05-deployment.md §7](05-deployment.md#7-ai-detection-optional)), then check detection on recordings from the C12 and set the real field of view.

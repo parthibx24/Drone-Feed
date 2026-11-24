@@ -82,6 +82,15 @@ func TestDJICapabilities(t *testing.T) {
 		t.Errorf("note: %q", c.Note)
 	}
 
+	// No remote controller connected: not Pilot 2's camera-only link, so
+	// nothing is hidden and the note says to connect one.
+	in.bridge = &bridgeStatus{at: time.Now(), model: "M3T", noLink: true}
+	c = deriveCapabilities(in)
+	hasAll(t, c, FeatTakeoff, FeatLand, FeatRTL, FeatGimbal)
+	if !strings.Contains(c.Note, "No remote controller") {
+		t.Errorf("note: %q", c.Note)
+	}
+
 	// The bridge not answering: nothing is hidden, the aircraft refuses what it can't do.
 	in.bridge = nil
 	c = deriveCapabilities(in)
@@ -178,6 +187,34 @@ func fakeBridgeAircraft(t *testing.T, kinds []string) *httptest.Server {
 	}))
 	t.Cleanup(srv.Close)
 	return srv
+}
+
+func TestFetchBridgeLinkStates(t *testing.T) {
+	ctx := context.Background()
+	b := func(srv *httptest.Server, sn string) *BridgeConfig {
+		return &BridgeConfig{API: srv.URL + "/api/v1/aircraft/" + sn, Token: "bridge-token"}
+	}
+
+	// An RC on Pilot 2: a link, camera commands only.
+	st, err := fetchBridge(ctx, b(fakeBridgeAircraft(t, pilot2Kinds), "SN1"))
+	if err != nil || st.noLink || !slices.Equal(st.kinds, pilot2Kinds) {
+		t.Fatalf("pilot 2: %+v %v", st, err)
+	}
+	// Known aircraft, RC gone: the bridge lists no commands.
+	st, err = fetchBridge(ctx, b(fakeBridgeAircraft(t, []string{}), "SN1"))
+	if err != nil || !st.noLink {
+		t.Fatalf("no RC: %+v %v", st, err)
+	}
+	// Never seen since the bridge started (a fresh deploy): 404 is an answer, not a failure.
+	st, err = fetchBridge(ctx, b(fakeBridgeAircraft(t, pilot2Kinds), "OTHER"))
+	if err != nil || !st.noLink {
+		t.Fatalf("unknown aircraft: %+v %v", st, err)
+	}
+	// A wrong token is still a failure.
+	srv := fakeBridgeAircraft(t, pilot2Kinds)
+	if _, err := fetchBridge(ctx, &BridgeConfig{API: srv.URL + "/api/v1/aircraft/SN1", Token: "wrong"}); err == nil {
+		t.Fatal("expected an error for a wrong token")
+	}
 }
 
 func TestCapabilitiesRoutes(t *testing.T) {

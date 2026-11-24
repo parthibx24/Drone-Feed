@@ -1,6 +1,6 @@
 # Deploying `feature/multi-drone` on Dokploy
 
-This branch is the Go drone-gateway plus AI detection (people and vehicles, thermal, events, alerts, Analyze frame, follow), with StarWatch drones and DJI aircraft (the Mavic 3T, through dji-bridge) in one dashboard. The files here deploy the whole central server: Tailscale, go2rtc, Loki, Grafana, the file manager and the dashboard plus the AI detector.
+This branch is the Go drone-gateway plus AI detection (people and vehicles, thermal, events, alerts, Analyze frame, follow), with per-drone capabilities, so each drone shows only what it can do. This server holds StarWatch's own drones; DJI aircraft run in instances of their own ([docs/10](../../docs/10-drone-types.md#where-dji-aircraft-run)). The files here deploy the whole central server: Tailscale, go2rtc, Loki, Grafana, the file manager and the dashboard plus the AI detector.
 
 | File | Use |
 |---|---|

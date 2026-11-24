@@ -40,7 +40,11 @@ dji-bridge answers `GET {bridge.api}` with the aircraft and the command kinds it
 | **StarWatch Pilot** on the remote controller | Take control (arm), take-off, land, return home, pause, resume, go to, point at, missions and start, gimbal, zoom, photo, recording on the card, speaker, Thermal and Aircraft tabs |
 | **DJI Pilot 2** (Cloud API) | Camera only: gimbal, zoom, photo. The Flight tab says: "Open StarWatch Pilot on the remote controller to fly from here." |
 
-When the pilot switches apps, the dashboard follows within about 5 seconds. If dji-bridge stops answering, every DJI feature stays offered and the aircraft refuses what its link can't do. Hiding Land or Return home because a status request failed would be worse.
+When the pilot switches apps, the dashboard follows within about 5 seconds.
+
+With **no remote controller connected** (the aircraft has not come online since dji-bridge started, or its RC left), the bridge lists no commands. That is not Pilot 2's camera-only link, so the dashboard keeps every DJI feature (the aircraft is offline anyway) and says: "No remote controller is connected for this aircraft. Open StarWatch Pilot on it to fly from here, or DJI Pilot 2 for the camera only."
+
+If dji-bridge stops answering, every DJI feature stays offered and the aircraft refuses what its link can't do. Hiding Land or Return home because a status request failed would be worse.
 
 For DJI, Arm reads **Take control**: dji-bridge asks the pilot on the remote controller to hand over control. Disarm reads **Release**.
 
@@ -49,22 +53,24 @@ For DJI, Arm reads **Take control**: dji-bridge asks the pilot on the remote con
 | Kind | In `gateway.yaml` | Elsewhere |
 |---|---|---|
 | ArduPilot | `id`, `name`, `mavlink`, `stream_prefix`, as for star9 | mavlink-router (+ gimbal-bridge) on the Pi ([05-deployment.md](05-deployment.md)); a unique `MAV_SYSID` |
-| DJI through dji-bridge | as above, `mavlink: tcp:<dji-bridge>:<port>` and `bridge: {api, token}` | dji-bridge running and reachable from the gateway (below) |
+| DJI through dji-bridge | as above, `mavlink: tcp:<dji-bridge>:<port>` and `bridge: {api, token}` | dji-bridge in the same stack ([below](#where-dji-aircraft-run)) |
 | Other MAVLink | as above, plus `autopilot: mavlink` | test each command before enabling it under `features.enable` |
 
-### The Mavic 3T on this server
+## Where DJI aircraft run
 
-The 3T runs today in its own Dokploy instance (Mavic-3t-System, `deploy/dokploy`): dji-bridge, mediamtx, go2rtc and its own gateway. To show it here as well, this server's gateway and go2rtc need three things from that stack:
+The code lets one dashboard hold every kind of drone. In practice each owner gets their own instance, because Drone-Feed has no per-user drone access (Limits, below). Decided 2026-11-24:
 
-1. **MAVLink:** dji-bridge's TCP endpoint (`tcp:dji-bridge:5760` inside its stack). It is not published, so either run dji-bridge in this stack or connect the two stacks' Docker networks. Do not publish it to the internet: MAVLink has no login.
-2. **Aircraft API:** `bridge.api` = dji-bridge's `/api/v1/aircraft/<serial>` (its HTTPS domain works) with `bridge.token` = its `api.token`.
-3. **Video:** a go2rtc stream named `<stream_prefix>_camera` on this server that pulls from the 3T's mediamtx (RTSP `mavic3t_camera`).
+| Instance | Drones | Files |
+|---|---|---|
+| star9's central server | StarWatch's ArduPilot drones only | [`deploy/dokploy`](../deploy/dokploy/) here |
+| Mavic 3T instance | that owner's Mavic 3T | Mavic-3t-System: `docker-compose.yml`, `deploy/dokploy/` |
+| SMP instance | SMP's DJI aircraft (Mavic 3T; other DJI models once tested), with AI detection | Mavic-3t-System: `docker-compose.smp.yml`, `deploy/smp/` |
 
-The commented `mavic3t` entry in [`deploy/dokploy/gateway.example.yaml`](../deploy/dokploy/gateway.example.yaml) is the template.
+A DJI instance runs dji-bridge, mediamtx, go2rtc, this dashboard and, for SMP, the detector in one stack. The gateway reaches dji-bridge by name (`tcp:dji-bridge:5760`), so MAVLink is never published. The compose file builds the dashboard from a pinned commit of this repository.
 
 ## Limits
 
-- **Every login sees every drone.** Drone-Feed has no per-user drone access, so anyone who can log in here can watch, and operators can fly, the 3T. This is why the 3T was given its own instance on 2026-11-14 (its owner differs from star9's).
+- **Every login sees every drone.** Drone-Feed has no per-user drone access: anyone who can log in to an instance can watch, and operators can fly, every drone in it. This is why each owner has an instance of their own (above).
 - **AI on a lens-switching camera.** The 3T sends one stream whose lens changes. The gateway tells the detector the lens the camera reports, so the thermal model runs while the thermal lens is on. On a lens change the detector restarts that stream's worker, which takes a few seconds, and tracks start again.
 - **The Zoom statistic** stays on drones without a zoom; it reads 1.0×.
 - `mavlink` is not flight-tested on any autopilot. Its features are the conservative set, and anything more is enabled per drone.

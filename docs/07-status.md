@@ -125,5 +125,6 @@ Not built: fire/smoke detection (needs a separate model), flight-log health repo
 
 Not yet verified:
 - Against the real dji-bridge and the 3T (only a fake bridge so far).
-- The detector's worker restart on a lens change (the Python change is small; the detector's unit tests were not run).
-- How the 3T reaches this server: dji-bridge's MAVLink, its API and its video ([10-drone-types.md](10-drone-types.md#the-mavic-3t-on-this-server)).
+- The detector's worker restart on a real lens change (its unit tests pass, 2026-11-24).
+
+Where it runs (decided 2026-11-24): star9's server keeps StarWatch's drones only, and DJI aircraft run in instances of their own from Mavic-3t-System, first SMP's ([10-drone-types.md](10-drone-types.md#where-dji-aircraft-run)). The SMP configuration was run locally with the real dji-bridge binary and no RC. It loads; the aircraft is `dji`, with no modes and no parameters (409); AI is on; and the dashboard says "No remote controller is connected" until an RC links.

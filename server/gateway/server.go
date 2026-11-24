@@ -213,12 +213,16 @@ func (g *Gateway) route(role string, h func(w http.ResponseWriter, r *http.Reque
 		}
 		r = r.WithContext(context.WithValue(r.Context(), actorKey, a))
 		if r.Method == http.MethodGet {
-			h(w, r, d)
+			if !g.refuseUnsupported(w, r, d) {
+				h(w, r, d)
+			}
 			return
 		}
 		rec := &statusRecorder{ResponseWriter: w, status: 200}
 		start := time.Now()
-		h(rec, r, d)
+		if !g.refuseUnsupported(rec, r, d) {
+			h(rec, r, d)
+		}
 		g.audit.Info("command", "actor", a.name, "drone", d.cfg.ID, "method", r.Method, "path", r.URL.Path,
 			"status", rec.status, "error", rec.errMsg, "duration_ms", time.Since(start).Milliseconds())
 	}
@@ -329,7 +333,7 @@ func (g *Gateway) Handler() http.Handler {
 			st := d.Snapshot()
 			out = append(out, map[string]any{
 				"id": id, "name": d.cfg.Name, "online": st.Online, "armed": st.Armed, "mode": st.Mode,
-				"stream_prefix": d.cfg.StreamPrefix, "telemetry": st,
+				"stream_prefix": d.cfg.StreamPrefix, "telemetry": st, "capabilities": g.Capabilities(d),
 			})
 		}
 		writeJSON(w, 200, out)
@@ -349,6 +353,9 @@ func (g *Gateway) Handler() http.Handler {
 	// --- read
 	mux.HandleFunc("GET /api/v1/drones/{id}", g.route(V, func(w http.ResponseWriter, r *http.Request, d *Drone) {
 		writeJSON(w, 200, d.Snapshot())
+	}))
+	mux.HandleFunc("GET /api/v1/drones/{id}/capabilities", g.route(V, func(w http.ResponseWriter, r *http.Request, d *Drone) {
+		writeJSON(w, 200, g.Capabilities(d))
 	}))
 	mux.HandleFunc("GET /api/v1/drones/{id}/statustext", g.route(V, func(w http.ResponseWriter, r *http.Request, d *Drone) {
 		writeJSON(w, 200, d.StatusTexts())

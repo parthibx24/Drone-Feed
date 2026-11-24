@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"reflect"
 	"sync/atomic"
 	"time"
 
@@ -76,6 +77,12 @@ func (g *Gateway) serveWS(w http.ResponseWriter, r *http.Request, d *Drone) {
 	if !send(Event{Type: "telemetry", Data: d.Snapshot()}) {
 		return
 	}
+	// Capabilities change with the aircraft's link (DJI: StarWatch Pilot or
+	// Pilot 2) and as components appear: sent now and whenever they change.
+	caps := g.Capabilities(d)
+	if !send(Event{Type: "capabilities", Data: caps}) {
+		return
+	}
 	for {
 		select {
 		case <-ctx.Done():
@@ -88,6 +95,12 @@ func (g *Gateway) serveWS(w http.ResponseWriter, r *http.Request, d *Drone) {
 		case <-tick.C:
 			if !send(Event{Type: "telemetry", Data: d.Snapshot()}) {
 				return
+			}
+			if next := g.Capabilities(d); !reflect.DeepEqual(next, caps) {
+				caps = next
+				if !send(Event{Type: "capabilities", Data: caps}) {
+					return
+				}
 			}
 		}
 	}

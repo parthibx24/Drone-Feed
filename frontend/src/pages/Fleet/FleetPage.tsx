@@ -29,6 +29,19 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
+/** "ArduCopter 4.7.0", "DJI M3T", "MAVLink QUADROTOR": what kind of drone this is. */
+function droneKind(drone: DroneSummary): string {
+  const t = drone.telemetry;
+  switch (drone.capabilities?.autopilot) {
+    case "dji":
+      return `DJI ${drone.capabilities.model || "aircraft"}`;
+    case "mavlink":
+      return ["MAVLink", t.vehicle_type?.toLowerCase().replace(/_/g, " ")].filter(Boolean).join(" ");
+    default:
+      return t.firmware ? `ArduCopter ${t.firmware}` : "ArduPilot";
+  }
+}
+
 function DroneCard({ drone, onOpen }: { drone: DroneSummary; onOpen: () => void }) {
   const t = drone.telemetry;
   const battery = t.battery?.remaining_pct != null
@@ -45,7 +58,9 @@ function DroneCard({ drone, onOpen }: { drone: DroneSummary; onOpen: () => void 
         <div className={styles.cardHeader}>
           <div>
             <div className={styles.name}>{drone.name}</div>
-            <div className={styles.id}>{drone.id}{t.firmware ? ` · ArduCopter ${t.firmware}` : ""}</div>
+            <div className={styles.id}>
+              {drone.id} · {droneKind(drone)}
+            </div>
           </div>
           <span className={`${styles.status} ${drone.online ? styles.online : styles.offline}`}>
             <span className={styles.dot} />

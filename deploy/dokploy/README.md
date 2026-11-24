@@ -20,6 +20,7 @@ This branch is the Go drone-gateway plus AI detection (people and vehicles, ther
    | `AI_INGEST_TOKEN` | yes | Shared by the dashboard and the detector: `openssl rand -hex 24` |
    | `ANTHROPIC_API_KEY` | no | Turns on "Analyze frame" |
    | `TELEGRAM_BOT_TOKEN` | no | Telegram alerts (also set `chat_id` in `gateway.yaml`) |
+   | `BRIDGE_API_TOKEN` | with a DJI aircraft | dji-bridge's `api.token`, for the aircraft's `bridge.token` in `gateway.yaml` ([docs/10](../../docs/10-drone-types.md)) |
 
 3. **File mount:** Advanced → Mounts → Add → File Mount, path `gateway.yaml`, content from `gateway.example.yaml`. Replace:
    - `REPLACE-WITH-BCRYPT-HASH`: run `drone-gateway hash-password` in the `drone-dashboard` terminal (Open Terminal, shell `sh`) if a gateway version is already running. Otherwise run it on any machine with Docker: `docker run --rm -it --entrypoint drone-gateway $(docker build -q https://github.com/parthibx24/Drone-Feed.git#feature/multi-drone) hash-password`.

@@ -39,6 +39,16 @@ drones:
   #   name: Shahporan Thana SMP
   #   mavlink: udp:100.115.37.32:14560
   #   stream_prefix: Shahporan-Thana-SMP
+  # The Mavic 3T through dji-bridge (docs/10-drone-types.md, "The Mavic 3T on
+  # this server"). The dashboard shows only what the aircraft's link can do:
+  # StarWatch Pilot flies, DJI Pilot 2 only moves the camera.
+  # - id: mavic3t
+  #   name: Mavic 3T
+  #   mavlink: tcp:dji-bridge:5760                   # dji-bridge's MAVLink, reachable from this stack only
+  #   stream_prefix: mavic3t                         # go2rtc stream mavic3t_camera, pulled from the 3T's mediamtx
+  #   bridge:
+  #     api: https://REPLACE-WITH-BRIDGE-DOMAIN/api/v1/aircraft/REPLACE-WITH-AIRCRAFT-SERIAL
+  #     token: ${BRIDGE_API_TOKEN}                   # dji-bridge's api.token
 
 # AI detection (docs/09-ai.md). Remove alerts / auto_record / vision to turn
 # those features off.

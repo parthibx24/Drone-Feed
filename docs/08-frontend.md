@@ -12,11 +12,23 @@ It's React 19 + TypeScript, built with Vite, and uses react-router for pages and
 | `/` | [`pages/Fleet`](../frontend/src/pages/Fleet/) | All drones: online, mode, armed, battery, GPS, altitude. Updates every 3 s. Old `/?host=…&name=<prefix>` links redirect to the matching drone. |
 | `/drones/:id` | [`pages/Dashboard`](../frontend/src/pages/Dashboard/) | The original dashboard (video, statistics, compass, map, gimbal pad, recordings) plus a **Flight** panel and **Go to** on the map |
 | `/drones/:id/mission` | [`pages/Mission`](../frontend/src/pages/Mission/) | Mission planner |
-| `/drones/:id/params` | [`pages/Params`](../frontend/src/pages/Params/) | ArduPilot parameters |
+| `/drones/:id/params` | [`pages/Params`](../frontend/src/pages/Params/) | Autopilot parameters (not on DJI aircraft) |
 | `/drones/:id/messages` | [`pages/Messages`](../frontend/src/pages/Messages/) | Autopilot messages (pre-arm errors, GPS, EKF, failsafes) |
 | `/drones/:id/detections` | [`pages/Detections`](../frontend/src/pages/Detections/) | AI event log: filter by drone, type, label and time; snapshot, positions and a Google Maps link for each event |
 
 Every drone page shares one live WebSocket ([`context/DroneContext.tsx`](../frontend/src/context/DroneContext.tsx)), so switching tabs does not reconnect.
+
+## Per-drone controls
+
+Drones of different kinds share the dashboard (an ArduPilot drone, a DJI Mavic 3T, …), so each shows only what it can do. `DroneContext` holds the drone's capabilities (from the drone list, then the WebSocket) and `can(feature)`. With it:
+
+- the top bar lists Mission, Parameters and Detections only when offered, and [`RequireFeature`](../frontend/src/components/layout/RequireFeature.tsx) answers those URLs with "Not available on this drone" otherwise;
+- the Flight panel shows the mode row, Arm, Take off, Land, RTL, Pause and Resume one by one, with DJI wording (Take control, Release, Return home) and the gateway's note when the aircraft's link can't fly;
+- the gimbal pad, gimbal speed, zoom, Go to and the AI tab appear with their features (the map widens into the gimbal pad's place);
+- the mission planner offers the drone's item types and checks its altitude frames; Start appears with `mission_start`;
+- the Fleet page names each drone's kind (ArduCopter 4.7.0, DJI M3T).
+
+Background: [10-drone-types.md](10-drone-types.md).
 
 ## Roles in the UI
 

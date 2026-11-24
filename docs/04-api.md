@@ -38,11 +38,12 @@ All request and response bodies are JSON.
 | Method | Path | Role | Notes |
 |---|---|---|---|
 | GET | `/healthz` (no `/api/v1` prefix) | none | Liveness |
-| GET | `/drones` | V | `[{id, name, online, armed, mode, stream_prefix, telemetry}]` |
+| GET | `/drones` | V | `[{id, name, online, armed, mode, stream_prefix, telemetry, capabilities}]` |
 | GET | `/limits` | V | `{max_alt_m, max_speed_m_s, max_mission_items}` |
 | GET | `/drones/{id}` | V | Full telemetry snapshot (below) |
 | GET | `/drones/{id}/statustext` | V | Last 100 autopilot messages |
 | GET | `/drones/{id}/modes` | V | Accepted flight mode names |
+| GET | `/drones/{id}/capabilities` | V | What the drone offers ([below](#capabilities)) |
 | WS | `/drones/{id}/ws` | V | Live stream (below). Cookie or `?token=`. |
 
 ### Telemetry snapshot
@@ -81,10 +82,43 @@ Fields are `null` until the matching MAVLink message has been received.
 | `{"type": "statustext", "data": {time, severity, text}}` | As it happens |
 | `{"type": "link", "data": {"online": bool}}` | When the drone goes online or offline |
 | `{"type": "mission_item_reached", "data": {"seq": n}}` | As it happens |
+| `{"type": "capabilities", "data": <capabilities>}` | After the first telemetry, then whenever they change |
 
 **Client → server (operator only):**
 - `{"type": "gimbal_rate", "pitch_deg_s": -10, "yaw_deg_s": 0}` sets hold-to-move rates.
 - Send it at 4 Hz or more while the control is held, then send zeros on release. The gimbal also stops by itself if updates stop.
+
+### Capabilities
+
+```json
+{
+  "autopilot": "dji",
+  "model": "M3T",
+  "features": ["aircraft", "arm", "gimbal", "goto", "land", "mission", "mission_start", "pause", "photo", "recording", "resume", "roi", "rtl", "speaker", "takeoff", "zoom"],
+  "modes": [],
+  "mission_items": ["takeoff", "waypoint", "…"],
+  "mission_alt_frames": ["relative"],
+  "note": "…"
+}
+```
+
+`autopilot` is the profile (`ardupilot`, `dji` or `mavlink`); `model` is set when the aircraft reports one; `modes` lists the modes `POST /mode` accepts (empty without `set_mode`); `note` says why fewer features than usual are offered. How they are worked out: [10-drone-types.md](10-drone-types.md).
+
+A route whose feature the drone's profile rules out answers **409** `"<drone> does not offer this (<feature>)"` before anything is sent:
+
+| Feature | Routes |
+|---|---|
+| `arm` | `arm`, `disarm` |
+| `set_mode` | `mode` |
+| `takeoff`, `land`, `rtl`, `pause`, `resume`, `goto`, `speed`, `reboot` | the route of the same name |
+| `roi` | `POST` and `DELETE /roi` |
+| `mission` | `GET`, `PUT` and `DELETE /mission` |
+| `mission_start`, `mission_jump` | `/mission/start`, `/mission/current` |
+| `params` | every `/params` route, reads included |
+| `gimbal` | `/gimbal/*` |
+| `photo`, `camera_video`, `zoom` | `/camera/photo*`, `/camera/video/*`, `/camera/zoom` |
+
+Gimbal and camera routes are refused only when the profile rules them out, not while the component simply hasn't been seen.
 
 ## Flight
 

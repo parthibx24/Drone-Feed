@@ -112,3 +112,18 @@ Not built: fire/smoke detection (needs a separate model), flight-log health repo
 4. ~~Switch the server's `dashboard` service to this branch~~ (done 2026-11-11 on Dokploy; see Deployed above).
 5. Do the Pi final install (retire the old agent).
 6. Deploy AI ([05-deployment.md §7](05-deployment.md#7-ai-detection-optional)), then check detection on recordings from the C12 and set the real field of view.
+
+## Several kinds of drone in one dashboard (branch `feature/multi-drone`, 2026-11-24, not deployed)
+
+`feature/msdk-capabilities` (the Mavic 3T's speaker, thermal, obstacle avoidance, RTK) merged with `feature/ai-detection`, plus per-drone capabilities: see [10-drone-types.md](10-drone-types.md).
+
+| Verified | How |
+|---|---|
+| Capabilities per profile, the DJI link switch, overrides, config validation, 409 on unsupported routes | `capabilities_test.go`, with a fake dji-bridge; `go test -race ./server/...` |
+| The thermal model follows a lens-switching camera | `camera_test.go` |
+| Whole UI | Locally: sim-vehicle as star9 (with gimbal-bridge), a second sim-vehicle plus a fake dji-bridge as the 3T, a third as a `mavlink` drone. Headless Chrome screenshots of the fleet, each dashboard, the Pilot 2 switch and the "Not available" page. |
+
+Not yet verified:
+- Against the real dji-bridge and the 3T (only a fake bridge so far).
+- The detector's worker restart on a lens change (the Python change is small; the detector's unit tests were not run).
+- How the 3T reaches this server: dji-bridge's MAVLink, its API and its video ([10-drone-types.md](10-drone-types.md#the-mavic-3t-on-this-server)).

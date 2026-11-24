@@ -108,6 +108,8 @@ ArduPilot applies these rates to the serial port the Pi uses, so every consumer 
 | `limits.max_mission_items` | `500` | |
 | `stream_rates` | table above | Message name → Hz |
 | `drones[]` | (required) | `id`, `name`, `mavlink` (endpoint), optional `system_id`, `stream_prefix` (go2rtc `<prefix>_*` streams, default the id), optional `bridge` and `speaker` (below) |
+| `drones[].autopilot` | `dji` with `bridge`, else from the heartbeat (`ardupilot` until one arrives) | The drone's profile, which decides what the dashboard offers and the gateway lets through: `ardupilot`, `dji` (through dji-bridge, needs `bridge`) or `mavlink` (another autopilot: standard protocols only). See [10-drone-types.md](10-drone-types.md). |
+| `drones[].features.enable` / `.disable` | none | Features to add to or remove from the profile for this drone, e.g. `disable: [params]`. Unknown names are rejected. |
 | `drones[].bridge.api` | none | The aircraft's API beyond MAVLink: thermal measurement, palette, gain and isotherm, obstacle avoidance, RTK (the dashboard's Thermal and Aircraft tabs) and the speaker. For the Mavic 3T: `http://dji-bridge:8090/api/v1/aircraft/<SERIAL>`. No `bridge` = no such tabs. |
 | `drones[].bridge.token` | (required with `api`) | Sent upstream as `Authorization: Bearer`; use `${VAR}` (dji-bridge's `api.token`). Browsers never see it. |
 | `drones[].speaker.api` | `{bridge.api}/speaker` | A loudspeaker MAVLink can't reach: the base URL of its speaker API, which the gateway proxies the dashboard's Speaker tab to. Only needed without a `bridge`, or to point the speaker elsewhere. No `speaker` and no `bridge` = no Speaker tab. |

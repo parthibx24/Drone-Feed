@@ -23,6 +23,8 @@ Explanation is in [`docs/`](docs/); everything else is code or configuration.
 | [06-testing](docs/06-testing.md) | Tests and the local sandbox (no drone needed) |
 | [07-status](docs/07-status.md) | What is verified, what is not, next steps |
 | [08-frontend](docs/08-frontend.md) | Pages, roles in the UI, how the UI talks to the server |
+| [09-ai](docs/09-ai.md) | AI detection: detector, events, alerts, follow |
+| [10-drone-types](docs/10-drone-types.md) | ArduPilot drones, DJI aircraft and other autopilots in one dashboard: profiles, capabilities, adding a drone |
 
 ## Quick start (no drone needed)
 

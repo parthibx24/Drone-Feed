@@ -23,11 +23,15 @@ export class MapTracker {
   private marker: L.Marker | null = null;
   private target: L.CircleMarker | null = null;
   private readonly events: L.LayerGroup;
+  private readonly resize: ResizeObserver;
 
   constructor(element: HTMLElement, markerHtml: string, trailColor: string) {
     this.markerHtml = markerHtml;
     this.map = L.map(element, { zoomControl: false }).setView([23.8, 90.4], 7); // Bangladesh until the drone has a GPS fix
     this.map.attributionControl.setPrefix(false);
+    // The panel widens when a drone has no gimbal pad: redraw the tiles to fit.
+    this.resize = new ResizeObserver(() => this.map.invalidateSize());
+    this.resize.observe(element);
     L.tileLayer(SATELLITE_TILES, { maxZoom: MAX_ZOOM, attribution: SATELLITE_ATTRIBUTION }).addTo(this.map);
     this.trail = L.polyline([], { color: trailColor, weight: 2 }).addTo(this.map);
     this.events = L.layerGroup().addTo(this.map);
@@ -82,6 +86,7 @@ export class MapTracker {
   }
 
   destroy(): void {
+    this.resize.disconnect();
     this.map.remove();
   }
 }

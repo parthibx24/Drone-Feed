@@ -13,6 +13,9 @@ interface ShortcutActions {
   toggleRecording: () => void;
   /** False for viewers: shortcuts do nothing. */
   enabled?: boolean;
+  /** False when the drone has no gimbal (or no zoom): those keys do nothing. */
+  gimbalEnabled?: boolean;
+  zoomEnabled?: boolean;
 }
 
 /** Arrows jog the gimbal, Space stops, C centres, 1/Z resets zoom, R toggles recording. */
@@ -29,18 +32,19 @@ export function useKeyboardShortcuts(actions: ShortcutActions): void {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.repeat) return;
       if (document.activeElement?.matches("input, textarea, select")) return;
-      const { gimbal, toggleRecording, enabled = true } = latest.current;
+      const { gimbal, toggleRecording, enabled = true, gimbalEnabled = true, zoomEnabled = true } = latest.current;
       if (!enabled) return;
+      const key = event.key.toLowerCase();
+      if (key === "r") return toggleRecording();
+      if ((key === "1" || key === "z") && zoomEnabled) return gimbal.zoomReset();
+      if (!gimbalEnabled) return;
 
       if (event.code === "Space") {
         event.preventDefault();
         gimbal.stop();
         return;
       }
-      const key = event.key.toLowerCase();
       if (key === "c") return gimbal.center();
-      if (key === "1" || key === "z") return gimbal.zoomReset();
-      if (key === "r") return toggleRecording();
 
       const direction = ARROW_DIRECTIONS[event.key];
       if (direction && activeKey !== event.key) {

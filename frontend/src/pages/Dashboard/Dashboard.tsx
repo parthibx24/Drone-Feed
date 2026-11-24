@@ -62,7 +62,7 @@ export function Dashboard() {
   const { message, notify } = useToast();
   const confirm = useConfirm();
   const { canOperate } = useAuth();
-  const { id, info, snapshot, sendGimbalRate, detections, follow, setFollow } = useDrone();
+  const { id, info, snapshot, sendGimbalRate, detections, follow, setFollow, can } = useDrone();
   const telemetry = useMemo(() => toTelemetry(snapshot), [snapshot]);
   const prefix = info?.stream_prefix;
 
@@ -81,7 +81,7 @@ export function Dashboard() {
   const tabs: SidebarTab[] = [
     "flight",
     "recordings",
-    "ai",
+    ...(can("ai") ? (["ai"] as const) : []),
     ...(speaker.available ? (["speaker"] as const) : []),
     ...(aircraft.available && hasThermal ? (["thermal"] as const) : []),
     ...(aircraft.available && hasAircraft ? (["aircraft"] as const) : []),
@@ -96,7 +96,15 @@ export function Dashboard() {
   const aiEvents = useAIEvents();
   const canFollow = canOperate && Boolean(aiStatus.status?.features.follow);
 
-  useKeyboardShortcuts({ gimbal, toggleRecording: recording.toggle, enabled: canOperate });
+  const hasGimbal = can("gimbal");
+  const hasZoom = can("zoom");
+  useKeyboardShortcuts({
+    gimbal,
+    toggleRecording: recording.toggle,
+    enabled: canOperate,
+    gimbalEnabled: hasGimbal,
+    zoomEnabled: hasZoom,
+  });
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -195,7 +203,7 @@ export function Dashboard() {
     state: feedLinks[feed.stream] ?? ("checking" as const),
   }));
   const recordingHandlers = { onPreview: setPreviewItem, onDelete: recording.deleteRecording };
-  const canGoto = canOperate && Boolean(snapshot?.online && snapshot.armed);
+  const canGoto = canOperate && can("goto") && Boolean(snapshot?.online && snapshot.armed);
 
   // Spot and area temperatures on the video, while the thermal lens is shown
   // and the readings are fresh (none while the aircraft is offline).
@@ -301,6 +309,8 @@ export function Dashboard() {
           renderOverlay={renderOverlay}
           ai={videoAI}
           onMainStreamChange={setMainStream}
+          gimbalControls={hasGimbal}
+          zoomControls={hasZoom}
         />
         <div className={styles.bottomRow}>
           <Compass heading={telemetry.heading_deg} />
@@ -312,7 +322,7 @@ export function Dashboard() {
             target={gotoTarget}
             events={mapEvents}
           />
-          <GimbalPad move={gimbal.move} stop={gimbal.stop} center={gimbal.center} disabled={!canOperate} />
+          {hasGimbal && <GimbalPad move={gimbal.move} stop={gimbal.stop} center={gimbal.center} disabled={!canOperate} />}
         </div>
       </div>
 

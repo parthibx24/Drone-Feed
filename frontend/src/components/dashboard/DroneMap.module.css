@@ -1,6 +1,6 @@
+/* 438 px beside the gimbal pad; takes the pad's place on drones without one. */
 .panel {
-  flex-shrink: 0;
-  width: 438px;
+  flex: 1 0 438px;
   height: 378px;
   isolation: isolate;
 }

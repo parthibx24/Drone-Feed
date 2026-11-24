@@ -43,6 +43,9 @@ interface VideoStageProps {
   ai?: VideoAI;
   /** Reports which camera is shown large. */
   onMainStreamChange?: (stream: string | undefined) => void;
+  /** The drone has a gimbal (speed control) and a zoom; false hides those controls. */
+  gimbalControls?: boolean;
+  zoomControls?: boolean;
 }
 
 export interface VideoAI {
@@ -73,6 +76,8 @@ export function VideoStage({
   renderOverlay,
   ai,
   onMainStreamChange,
+  gimbalControls = true,
+  zoomControls = true,
 }: VideoStageProps) {
   // A camera that switches lenses sends one stream showing the chosen lens
   // (Mavic 3T): the selector picks the lens, not the stream, and the feed
@@ -174,8 +179,10 @@ export function VideoStage({
         <ControlGroup className={styles.iconTray}>
           <IconButton icon={fullscreenIcon} label="Full screen" onClick={enterFullscreen} />
         </ControlGroup>
-        <SpeedControl speed={gimbal.speed} setSpeed={gimbal.setSpeed} />
-        <ZoomControl zoom={gimbal.zoom} zoomStep={gimbal.zoomStep} zoomReset={gimbal.zoomReset} disabled={!canOperate} />
+        {gimbalControls && <SpeedControl speed={gimbal.speed} setSpeed={gimbal.setSpeed} />}
+        {zoomControls && (
+          <ZoomControl zoom={gimbal.zoom} zoomStep={gimbal.zoomStep} zoomReset={gimbal.zoomReset} disabled={!canOperate} />
+        )}
       </div>
     </Panel>
   );

@@ -72,6 +72,10 @@ func fetchBridge(ctx context.Context, b *BridgeConfig) (*bridgeStatus, error) {
 		return nil, err
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusNotFound {
+		// The bridge is up but has not seen this aircraft since it started.
+		return &bridgeStatus{at: time.Now(), noLink: true}, nil
+	}
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("status %d", resp.StatusCode)
 	}
@@ -79,7 +83,8 @@ func fetchBridge(ctx context.Context, b *BridgeConfig) (*bridgeStatus, error) {
 	if err := json.NewDecoder(http.MaxBytesReader(nil, resp.Body, bridgeMaxBody)).Decode(&a); err != nil {
 		return nil, err
 	}
-	return &bridgeStatus{at: time.Now(), model: a.Model, online: a.Online, kinds: a.Capabilities}, nil
+	return &bridgeStatus{at: time.Now(), model: a.Model, online: a.Online, kinds: a.Capabilities,
+		noLink: len(a.Capabilities) == 0}, nil
 }
 
 // bridgeNow is the last bridge answer, or nil if there is none lately.

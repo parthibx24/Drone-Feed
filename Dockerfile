@@ -21,12 +21,20 @@ COPY tools/ tools/
 ARG VERSION=docker
 RUN CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=${VERSION}" -o /out/drone-gateway ./server/cmd/drone-gateway
 
-# 3. Runtime: small image with ffmpeg/ffprobe for server-side recording
+# 3. Runtime: small image with ffmpeg/ffprobe for server-side recording.
+# The package cache is a build cache mount, so on a slow or dropping link
+# a retry (here, or the next deploy) keeps the packages already fetched.
 FROM alpine:3.22
-RUN apk add --no-cache ffmpeg ca-certificates tzdata wget \
- && adduser -D -H -u 10001 starwatch \
- && mkdir -p /recordings /config \
- && chown starwatch /recordings
+RUN --mount=type=cache,target=/etc/apk/cache,sharing=locked \
+    set -e; \
+    for i in 1 2 3 4 5 6; do \
+      if apk add --update-cache ffmpeg ca-certificates tzdata wget; then break; fi; \
+      [ "$i" = 6 ] && exit 1; \
+      echo "apk add failed (try $i), retrying" >&2; sleep 10; \
+    done; \
+    adduser -D -H -u 10001 starwatch; \
+    mkdir -p /recordings /config; \
+    chown starwatch /recordings
 COPY --from=server /out/drone-gateway /usr/local/bin/drone-gateway
 COPY --from=web /src/frontend/dist /app/web
 USER starwatch

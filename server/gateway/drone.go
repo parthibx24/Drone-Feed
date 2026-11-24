@@ -58,6 +58,8 @@ type Drone struct {
 	camSeen    time.Time
 	sourceSeen time.Time // last VIDEO_STREAM_INFORMATION naming a lens
 	gimbalSeen time.Time
+	autopilot  common.MAV_AUTOPILOT // from the autopilot heartbeat; 0 until identified
+	bridgeSt   *bridgeStatus        // dji: the aircraft's link as dji-bridge last reported it
 	statusText []StatusText
 	params     map[string]Param
 	paramTotal int
@@ -113,6 +115,9 @@ func newDrone(cfg DroneConfig, gw *Config, log *slog.Logger) (*Drone, error) {
 
 func (d *Drone) run(ctx context.Context) {
 	go d.linkMonitor(ctx)
+	if d.cfg.Bridge != nil {
+		go d.pollBridge(ctx)
+	}
 	events := d.node.Events()
 	for {
 		select {
@@ -343,6 +348,7 @@ func (d *Drone) handleHeartbeat(sys, comp uint8, hb *common.MessageHeartbeat) {
 		reconnect := d.lastHB.IsZero() || now.Sub(d.lastHB) > reconnectGap
 		d.lastHB = now
 		d.st.SystemID = sys
+		d.autopilot = hb.Autopilot
 		d.st.VehicleType = strings.TrimPrefix(hb.Type.String(), "MAV_TYPE_")
 		d.st.Armed = hb.BaseMode&common.MAV_MODE_FLAG_SAFETY_ARMED != 0
 		d.st.Mode = mav.CopterModeName(hb.CustomMode)

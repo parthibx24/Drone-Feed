@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"os"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -87,6 +88,15 @@ type DroneConfig struct {
 	Name     string `yaml:"name"`
 	MAVLink  string `yaml:"mavlink"`
 	SystemID uint8  `yaml:"system_id"`
+	// Autopilot is the drone's profile, which decides what the dashboard
+	// offers and the gateway lets through (capabilities.go): ardupilot,
+	// dji (an aircraft behind dji-bridge) or mavlink (another MAVLink
+	// autopilot: standard protocols only). Empty = dji when bridge is set,
+	// else from the autopilot heartbeat (ardupilot until one arrives).
+	Autopilot string `yaml:"autopilot"`
+	// Features adds features the profile leaves out or removes ones this
+	// drone should not offer (names in capabilities.go).
+	Features FeaturesConfig `yaml:"features"`
 	// StreamPrefix: go2rtc streams named "<prefix>_*" belong to this drone
 	// (e.g. kotowali_camera). Defaults to the id. Also names its recordings.
 	StreamPrefix string `yaml:"stream_prefix"`
@@ -100,6 +110,12 @@ type DroneConfig struct {
 	// this HTTP API. Defaults to {bridge.api}/speaker when Bridge is set;
 	// set it only to point the speaker elsewhere. Nil = no speaker.
 	Speaker *SpeakerConfig `yaml:"speaker"`
+}
+
+// FeaturesConfig adjusts a drone's features on top of its profile.
+type FeaturesConfig struct {
+	Enable  []string `yaml:"enable"`
+	Disable []string `yaml:"disable"`
 }
 
 // BridgeConfig locates a drone's aircraft API.
@@ -266,6 +282,19 @@ func (c *Config) Normalize() error {
 		}
 		if d.StreamPrefix == "" {
 			c.Drones[i].StreamPrefix = d.ID
+		}
+		switch d.Autopilot {
+		case "", ProfileArduPilot, ProfileDJI, ProfileMAVLink:
+		default:
+			return fmt.Errorf("drones[%d] %s: autopilot must be ardupilot, dji or mavlink", i, d.ID)
+		}
+		if d.Autopilot == ProfileDJI && d.Bridge == nil {
+			return fmt.Errorf("drones[%d] %s: autopilot dji needs bridge (dji-bridge's aircraft API)", i, d.ID)
+		}
+		for _, f := range append(slices.Clone(d.Features.Enable), d.Features.Disable...) {
+			if !knownFeatures[f] {
+				return fmt.Errorf("drones[%d] %s: features: unknown feature %q", i, d.ID, f)
+			}
 		}
 		if b := d.Bridge; b != nil {
 			if err := checkUpstream(&b.API, &b.Token); err != "" {

@@ -1,0 +1,20 @@
+.panel {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  text-align: center;
+}
+
+.text {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 16px;
+}
+
+.back {
+  color: var(--color-accent);
+  font-size: 15px;
+}

@@ -1,5 +1,6 @@
 import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation, useParams } from "react-router";
 import { AuthProvider, useAuth } from "./context/AuthContext";
+import { RequireFeature } from "./components/layout/RequireFeature";
 import { DroneProvider } from "./context/DroneContext";
 import { Dashboard } from "./pages/Dashboard/Dashboard";
 import { DetectionsPage } from "./pages/Detections/DetectionsPage";
@@ -38,10 +39,31 @@ export function App() {
             <Route index element={<FleetPage />} />
             <Route path="drones/:id" element={<DroneRoute />}>
               <Route index element={<Dashboard />} />
-              <Route path="mission" element={<MissionPage />} />
-              <Route path="params" element={<ParamsPage />} />
+              <Route
+                path="mission"
+                element={
+                  <RequireFeature feature="mission" what="missions from the dashboard">
+                    <MissionPage />
+                  </RequireFeature>
+                }
+              />
+              <Route
+                path="params"
+                element={
+                  <RequireFeature feature="params" what="autopilot parameters">
+                    <ParamsPage />
+                  </RequireFeature>
+                }
+              />
               <Route path="messages" element={<MessagesPage />} />
-              <Route path="detections" element={<DetectionsPage />} />
+              <Route
+                path="detections"
+                element={
+                  <RequireFeature feature="ai" what="AI detection">
+                    <DetectionsPage />
+                  </RequireFeature>
+                }
+              />
             </Route>
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />

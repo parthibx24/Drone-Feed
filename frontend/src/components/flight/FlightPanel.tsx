@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { useDrone } from "../../context/DroneContext";
 import type { Notify } from "../../hooks/useToast";
@@ -9,7 +9,7 @@ import type { useConfirm } from "../ui/ConfirmDialog";
 import { NumberInput, Select } from "../ui/Field";
 import styles from "./FlightPanel.module.css";
 
-/** Modes worth offering in the UI, in a sensible order (all ArduCopter). */
+/** Modes worth offering first, in a sensible order (all ArduCopter). */
 const COMMON_MODES = ["LOITER", "GUIDED", "AUTO", "ALT_HOLD", "POSHOLD", "BRAKE", "RTL", "SMART_RTL", "LAND", "STABILIZE"];
 
 interface FlightPanelProps {
@@ -17,21 +17,27 @@ interface FlightPanelProps {
   confirm: ReturnType<typeof useConfirm>;
 }
 
-/** Arm / mode / takeoff / land / RTL / pause, each acknowledged by the drone. */
+/**
+ * Arm / mode / takeoff / land / RTL / pause, each acknowledged by the drone.
+ * Only the commands the drone offers are shown (capabilities): a DJI
+ * aircraft has no modes to pick, and none of these while its link is DJI
+ * Pilot 2.
+ */
 export function FlightPanel({ notify, confirm }: FlightPanelProps) {
   const { canOperate } = useAuth();
-  const { id, snapshot } = useDrone();
-  const [modes, setModes] = useState<string[]>(COMMON_MODES);
-  const [mode, setMode] = useState("LOITER");
+  const { id, snapshot, capabilities, can } = useDrone();
+  const modes = useMemo(() => {
+    const all = capabilities?.modes ?? [];
+    return [...COMMON_MODES.filter((m) => all.includes(m)), ...all.filter((m) => !COMMON_MODES.includes(m))];
+  }, [capabilities]);
+  const [picked, setMode] = useState<string | null>(null);
+  const mode = picked && modes.includes(picked) ? picked : (modes[0] ?? "");
   const [takeoffAlt, setTakeoffAlt] = useState<number | undefined>(10);
   const [busy, setBusy] = useState<string | null>(null);
-
-  useEffect(() => {
-    api
-      .modes(id)
-      .then((all) => setModes([...COMMON_MODES.filter((m) => all.includes(m)), ...all.filter((m) => !COMMON_MODES.includes(m))]))
-      .catch(() => {});
-  }, [id]);
+  const dji = capabilities?.autopilot === "dji";
+  const showModes = can("set_mode") && modes.length > 0;
+  const actions = (["land", "rtl", "pause", "resume"] as const).filter(can);
+  const anyFlight = showModes || can("arm") || can("takeoff") || actions.length > 0;
 
   const online = Boolean(snapshot?.online);
   const armed = Boolean(snapshot?.armed);
@@ -52,13 +58,18 @@ export function FlightPanel({ notify, confirm }: FlightPanelProps) {
 
   const arm = async () => {
     const ok = await confirm.ask({
-      title: "Arm motors?",
-      message: (
+      title: dji ? "Take control?" : "Arm motors?",
+      message: dji ? (
+        <>
+          The pilot is asked on the remote controller to hand control of <strong>{snapshot?.name}</strong> to StarWatch.
+          Take off next.
+        </>
+      ) : (
         <>
           The propellers can start spinning. Make sure the area around <strong>{snapshot?.name}</strong> is clear.
         </>
       ),
-      confirmLabel: "Arm",
+      confirmLabel: dji ? "Ask the pilot" : "Arm",
       danger: true,
     });
     if (ok) await run("arm", () => api.arm(id), "Armed");
@@ -68,7 +79,7 @@ export function FlightPanel({ notify, confirm }: FlightPanelProps) {
     if (inAir) {
       const ok = await confirm.ask({
         title: "Disarm in the air?",
-        message: "The drone reports it is flying. ArduPilot normally refuses this; if it does not, the drone will fall. Land first.",
+        message: "The drone reports it is flying. The autopilot normally refuses this; if it does not, the drone will fall. Land first.",
         confirmLabel: "Try to disarm",
         danger: true,
       });
@@ -96,71 +107,94 @@ export function FlightPanel({ notify, confirm }: FlightPanelProps) {
     if (!takeoffAlt || takeoffAlt <= 0) return notify("Enter a takeoff altitude");
     const ok = await confirm.ask({
       title: `Take off to ${takeoffAlt} m?`,
-      message: "The drone switches to GUIDED and climbs vertically to this height above home.",
+      message: dji
+        ? "The aircraft takes off and climbs to this height above the take-off point."
+        : "The drone switches to GUIDED and climbs vertically to this height above home.",
       confirmLabel: "Take off",
       danger: true,
     });
     if (ok) await run("takeoff", () => api.takeoff(id, takeoffAlt), `Taking off to ${takeoffAlt} m`);
   };
 
+  const labels = { land: "Land", rtl: dji ? "Return home" : "RTL", pause: "Pause", resume: "Resume" } as const;
+  const success = { land: "Landing", rtl: "Returning home", pause: "Paused", resume: "Resumed" } as const;
+  const calls = { land: api.land, rtl: api.rtl, pause: api.pause, resume: api.resume } as const;
+
   return (
     <div className={styles.panel}>
       {!canOperate && <p className={styles.notice}>View only: an operator login is needed to fly.</p>}
-      {canOperate && !online && <p className={styles.notice}>Drone offline: commands are disabled.</p>}
+      {canOperate && !online && anyFlight && <p className={styles.notice}>Drone offline: commands are disabled.</p>}
+      {capabilities?.note && <p className={styles.notice}>{capabilities.note}</p>}
+      {capabilities && !anyFlight && !capabilities.note && (
+        <p className={styles.notice}>This drone takes no flight commands from the dashboard.</p>
+      )}
 
-      <div className={styles.row}>
-        <Select value={mode} onChange={(e) => setMode(e.target.value)} disabled={disabled} aria-label="Flight mode">
-          {modes.map((m) => (
-            <option key={m} value={m}>
-              {m}
-            </option>
+      {showModes && (
+        <div className={styles.row}>
+          <Select value={mode} onChange={(e) => setMode(e.target.value)} disabled={disabled} aria-label="Flight mode">
+            {modes.map((m) => (
+              <option key={m} value={m}>
+                {m}
+              </option>
+            ))}
+          </Select>
+          <Button busy={busy === "mode"} disabled={disabled} onClick={changeMode}>
+            Set mode
+          </Button>
+        </div>
+      )}
+
+      {can("arm") && (
+        <div className={styles.row}>
+          <Button variant="danger" className={styles.grow} busy={busy === "arm"} disabled={disabled || armed} onClick={arm}>
+            {dji ? "Take control" : "Arm"}
+          </Button>
+          <Button className={styles.grow} busy={busy === "disarm"} disabled={disabled || !armed} onClick={disarm}>
+            {dji ? "Release" : "Disarm"}
+          </Button>
+        </div>
+      )}
+
+      {can("takeoff") && (
+        <div className={styles.row}>
+          <NumberInput
+            value={takeoffAlt}
+            onValue={setTakeoffAlt}
+            min={1}
+            max={120}
+            step={1}
+            disabled={disabled}
+            aria-label="Takeoff altitude (m)"
+            className={styles.alt}
+          />
+          <span className={styles.unit}>m</span>
+          <Button
+            variant="primary"
+            className={styles.grow}
+            busy={busy === "takeoff"}
+            disabled={disabled || (can("arm") && !armed)}
+            onClick={takeoff}
+          >
+            Take off
+          </Button>
+        </div>
+      )}
+
+      {actions.length > 0 && (
+        <div className={styles.row}>
+          {actions.map((a) => (
+            <Button
+              key={a}
+              className={styles.grow}
+              busy={busy === a}
+              disabled={disabled}
+              onClick={() => run(a, () => calls[a](id), success[a])}
+            >
+              {labels[a]}
+            </Button>
           ))}
-        </Select>
-        <Button busy={busy === "mode"} disabled={disabled} onClick={changeMode}>
-          Set mode
-        </Button>
-      </div>
-
-      <div className={styles.row}>
-        <Button variant="danger" className={styles.grow} busy={busy === "arm"} disabled={disabled || armed} onClick={arm}>
-          Arm
-        </Button>
-        <Button className={styles.grow} busy={busy === "disarm"} disabled={disabled || !armed} onClick={disarm}>
-          Disarm
-        </Button>
-      </div>
-
-      <div className={styles.row}>
-        <NumberInput
-          value={takeoffAlt}
-          onValue={setTakeoffAlt}
-          min={1}
-          max={120}
-          step={1}
-          disabled={disabled}
-          aria-label="Takeoff altitude (m)"
-          className={styles.alt}
-        />
-        <span className={styles.unit}>m</span>
-        <Button variant="primary" className={styles.grow} busy={busy === "takeoff"} disabled={disabled || !armed} onClick={takeoff}>
-          Take off
-        </Button>
-      </div>
-
-      <div className={styles.row}>
-        <Button className={styles.grow} busy={busy === "land"} disabled={disabled} onClick={() => run("land", () => api.land(id), "Landing")}>
-          Land
-        </Button>
-        <Button className={styles.grow} busy={busy === "rtl"} disabled={disabled} onClick={() => run("rtl", () => api.rtl(id), "Returning home")}>
-          RTL
-        </Button>
-        <Button className={styles.grow} busy={busy === "pause"} disabled={disabled} onClick={() => run("pause", () => api.pause(id), "Paused")}>
-          Pause
-        </Button>
-        <Button className={styles.grow} busy={busy === "resume"} disabled={disabled} onClick={() => run("resume", () => api.resume(id), "Resumed")}>
-          Resume
-        </Button>
-      </div>
+        </div>
+      )}
     </div>
   );
 }

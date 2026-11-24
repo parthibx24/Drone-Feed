@@ -44,6 +44,8 @@ When the pilot switches apps, the dashboard follows within about 5 seconds.
 
 With **no remote controller connected** (the aircraft has not come online since dji-bridge started, or its RC left), the bridge lists no commands. That is not Pilot 2's camera-only link, so the dashboard keeps every DJI feature (the aircraft is offline anyway) and says: "No remote controller is connected for this aircraft. Open StarWatch Pilot on it to fly from here, or DJI Pilot 2 for the camera only."
 
+An aircraft that is **online with no commands** is a model dji-bridge can't command yet: it knows the Mavic 3E and 3T, and over DJI Pilot 2 gives any other model telemetry and video only. The dashboard then offers no controls and says: "The aircraft service cannot command this model yet (<model>): video and telemetry only." Over StarWatch Pilot the app reports what it can do for the model it flies.
+
 If dji-bridge stops answering, every DJI feature stays offered and the aircraft refuses what its link can't do. Hiding Land or Return home because a status request failed would be worse.
 
 For DJI, Arm reads **Take control**: dji-bridge asks the pilot on the remote controller to hand over control. Disarm reads **Release**.
@@ -73,4 +75,5 @@ A DJI instance runs dji-bridge, mediamtx, go2rtc, this dashboard and, for SMP, t
 - **Every login sees every drone.** Drone-Feed has no per-user drone access: anyone who can log in to an instance can watch, and operators can fly, every drone in it. This is why each owner has an instance of their own (above).
 - **AI on a lens-switching camera.** The 3T sends one stream whose lens changes. The gateway tells the detector the lens the camera reports, so the thermal model runs while the thermal lens is on. On a lens change the detector restarts that stream's worker, which takes a few seconds, and tracks start again.
 - **The Zoom statistic** stays on drones without a zoom; it reads 1.0×.
+- **DJI models other than the Mavic 3E and 3T** need work in dji-bridge first (command mapping, mission files) and a test on the aircraft. Until then they show video and telemetry only.
 - `mavlink` is not flight-tested on any autopilot. Its features are the conservative set, and anything more is enabled per drone.

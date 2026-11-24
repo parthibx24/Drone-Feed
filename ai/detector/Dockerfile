@@ -5,8 +5,15 @@ ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 \
     MODEL_VISIBLE=/app/models/visible.onnx MODEL_THERMAL=/app/models/thermal.onnx
 
 WORKDIR /app
+# A slow or stalling link to PyPI must not fail the build (seen on the
+# Dokploy server 2026-11-24: numpy's download stalled past pip's 15 s read
+# timeout). A newer pip resumes interrupted downloads; the cache mount keeps
+# finished downloads for the next attempt without adding them to the image.
+ENV PIP_DEFAULT_TIMEOUT=120 PIP_RETRIES=10 PIP_DISABLE_PIP_VERSION_CHECK=1
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt \
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --upgrade "pip>=25.2" \
+ && pip install --resume-retries 10 -r requirements.txt \
  && adduser --disabled-password --gecos "" --uid 10002 detector
 
 COPY models/ models/

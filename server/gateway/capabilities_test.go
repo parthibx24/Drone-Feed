@@ -91,6 +91,14 @@ func TestDJICapabilities(t *testing.T) {
 		t.Errorf("note: %q", c.Note)
 	}
 
+	// Online, but a model dji-bridge can't command: nothing to offer, and the note says why.
+	in.bridge = &bridgeStatus{at: time.Now(), model: "M30T", online: true}
+	c = deriveCapabilities(in)
+	hasNone(t, c, FeatTakeoff, FeatLand, FeatGimbal, FeatZoom, FeatMission)
+	if !strings.Contains(c.Note, "cannot command this model yet (M30T)") {
+		t.Errorf("note: %q", c.Note)
+	}
+
 	// The bridge not answering: nothing is hidden, the aircraft refuses what it can't do.
 	in.bridge = nil
 	c = deriveCapabilities(in)
@@ -174,6 +182,10 @@ func TestCapabilityConfig(t *testing.T) {
 
 // fakeBridgeAircraft answers GET /api/v1/aircraft/SN1 as dji-bridge does.
 func fakeBridgeAircraft(t *testing.T, kinds []string) *httptest.Server {
+	return fakeBridgeAircraftState(t, kinds, true)
+}
+
+func fakeBridgeAircraftState(t *testing.T, kinds []string, online bool) *httptest.Server {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != "Bearer bridge-token" {
 			writeJSON(w, 401, map[string]any{"error": "bad token"})
@@ -183,7 +195,7 @@ func fakeBridgeAircraft(t *testing.T, kinds []string) *httptest.Server {
 			writeJSON(w, 404, map[string]any{"error": "no"})
 			return
 		}
-		writeJSON(w, 200, map[string]any{"serial": "SN1", "model": "M3T", "online": true, "capabilities": kinds})
+		writeJSON(w, 200, map[string]any{"serial": "SN1", "model": "M3T", "online": online, "capabilities": kinds})
 	}))
 	t.Cleanup(srv.Close)
 	return srv
@@ -200,10 +212,15 @@ func TestFetchBridgeLinkStates(t *testing.T) {
 	if err != nil || st.noLink || !slices.Equal(st.kinds, pilot2Kinds) {
 		t.Fatalf("pilot 2: %+v %v", st, err)
 	}
-	// Known aircraft, RC gone: the bridge lists no commands.
-	st, err = fetchBridge(ctx, b(fakeBridgeAircraft(t, []string{}), "SN1"))
+	// Known aircraft, RC gone: offline, no commands.
+	st, err = fetchBridge(ctx, b(fakeBridgeAircraftState(t, []string{}, false), "SN1"))
 	if err != nil || !st.noLink {
 		t.Fatalf("no RC: %+v %v", st, err)
+	}
+	// Online with no commands: a model the bridge can't command, not a missing RC.
+	st, err = fetchBridge(ctx, b(fakeBridgeAircraftState(t, []string{}, true), "SN1"))
+	if err != nil || st.noLink || !st.online {
+		t.Fatalf("unsupported model: %+v %v", st, err)
 	}
 	// Never seen since the bridge started (a fresh deploy): 404 is an answer, not a failure.
 	st, err = fetchBridge(ctx, b(fakeBridgeAircraft(t, pilot2Kinds), "OTHER"))

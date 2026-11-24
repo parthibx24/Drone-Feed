@@ -86,7 +86,12 @@ export function describe(item: MissionItem): string {
 }
 
 /** Client-side checks matching the server's, so errors show before upload. */
-export function validate(items: MissionItem[], limits: Limits | null): string[] {
+export function validate(
+  items: MissionItem[],
+  limits: Limits | null,
+  /** Item types and altitude frames the drone accepts (capabilities); undefined = any. */
+  accepts?: { types: MissionItemType[]; altFrames: string[] },
+): string[] {
   const errors: string[] = [];
   if (items.length === 0) errors.push("The mission is empty.");
   if (limits && items.length > limits.max_mission_items) errors.push(`At most ${limits.max_mission_items} items.`);
@@ -98,6 +103,10 @@ export function validate(items: MissionItem[], limits: Limits | null): string[] 
     if (item.lat != null && (item.lat < -90 || item.lat > 90)) errors.push(`${n}: latitude out of range.`);
     if (item.lon != null && (item.lon < -180 || item.lon > 180)) errors.push(`${n}: longitude out of range.`);
     if (item.lat === 0 && item.lon === 0) errors.push(`${n}: position 0,0 is not valid.`);
+    if (accepts && !accepts.types.includes(item.type)) errors.push(`${n}: this drone does not take this item.`);
+    if (accepts && item.alt_m != null && !accepts.altFrames.includes(item.alt_frame ?? "relative")) {
+      errors.push(`${n}: this drone takes altitudes above home only.`);
+    }
     // Sea-level altitudes are checked by the server against the home altitude.
     if (item.alt_m != null && limits && item.alt_frame !== "absolute" && (item.alt_m <= 0 || item.alt_m > limits.max_alt_m)) {
       errors.push(`${n}: altitude must be between 0 and ${limits.max_alt_m} m.`);
@@ -110,9 +119,10 @@ export function validate(items: MissionItem[], limits: Limits | null): string[] 
 }
 
 /** Warnings that do not block upload but usually mean a mistake. */
-export function warnings(items: MissionItem[]): string[] {
+export function warnings(items: MissionItem[], autopilot?: string): string[] {
   const out: string[] = [];
-  if (items.length > 0 && items[0].type !== "takeoff") {
+  // DJI aircraft take off on their own when a mission starts.
+  if (autopilot !== "dji" && items.length > 0 && items[0].type !== "takeoff") {
     out.push("The first item is not a takeoff: ArduCopter will not take off on its own in AUTO.");
   }
   const last = items[items.length - 1];

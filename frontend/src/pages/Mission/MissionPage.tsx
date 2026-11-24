@@ -31,7 +31,7 @@ const round7 = (v: number) => Math.round(v * 1e7) / 1e7;
 
 export function MissionPage() {
   const { canOperate } = useAuth();
-  const { id, snapshot } = useDrone();
+  const { id, snapshot, capabilities, can } = useDrone();
   const { message, notify } = useToast();
   const confirm = useConfirm();
 
@@ -83,8 +83,15 @@ export function MissionPage() {
     }
   }, [online, autoLoaded, download]);
 
-  const errors = useMemo(() => validate(items, limits), [items, limits]);
-  const warns = useMemo(() => warnings(items), [items]);
+  // Item types and altitude frames this drone takes (a DJI aircraft: heights above take-off, no raw items).
+  const accepts = useMemo(
+    () => (capabilities ? { types: capabilities.mission_items, altFrames: capabilities.mission_alt_frames } : undefined),
+    [capabilities],
+  );
+  const addable = accepts ? ADDABLE_TYPES.filter((t) => accepts.types.includes(t)) : ADDABLE_TYPES;
+  const dji = capabilities?.autopilot === "dji";
+  const errors = useMemo(() => validate(items, limits, accepts), [items, limits, accepts]);
+  const warns = useMemo(() => warnings(items, capabilities?.autopilot), [items, capabilities?.autopilot]);
 
   // Telemetry seq N is items[N-1] (seq 0 is home on the drone).
   const activeIndex =
@@ -192,8 +199,14 @@ export function MissionPage() {
       title: "Start the mission?",
       message: (
         <>
-          The drone switches to <strong>AUTO</strong> and flies the {items.length}-item mission now.
-          {!snapshot?.armed && " It must be armed first."}
+          {dji ? (
+            <>The aircraft flies the {items.length}-item mission now.</>
+          ) : (
+            <>
+              The drone switches to <strong>AUTO</strong> and flies the {items.length}-item mission now.
+              {!snapshot?.armed && " It must be armed first."}
+            </>
+          )}
         </>
       ),
       confirmLabel: "Start mission",
@@ -242,9 +255,11 @@ export function MissionPage() {
           <Button size="sm" variant="primary" busy={busy === "upload"} disabled={!editable || !online || busy !== null || !items.length} onClick={upload}>
             Write to drone
           </Button>
-          <Button size="sm" variant="danger" busy={busy === "start"} disabled={!editable || !online || busy !== null || !items.length} onClick={start}>
-            Start
-          </Button>
+          {can("mission_start") && (
+            <Button size="sm" variant="danger" busy={busy === "start"} disabled={!editable || !online || busy !== null || !items.length} onClick={start}>
+              Start
+            </Button>
+          )}
           <Button size="sm" variant="ghost" busy={busy === "clear"} disabled={!editable || !online || busy !== null} onClick={clearOnDrone}>
             Delete on drone
           </Button>
@@ -253,7 +268,7 @@ export function MissionPage() {
         {editable && (
           <div className={styles.addRow}>
             <Select value={newType} onChange={(e) => setNewType(e.target.value as MissionItemType)} aria-label="Item type">
-              {ADDABLE_TYPES.map((t) => (
+              {addable.map((t) => (
                 <option key={t} value={t}>
                   {ITEM_SPECS[t].label}
                 </option>
@@ -308,7 +323,7 @@ export function MissionPage() {
                   className={styles.typeSelect}
                   aria-label="Change item type"
                 >
-                  {[...ADDABLE_TYPES, ...(sel.type === "raw" ? (["raw"] as const) : [])].map((t) => (
+                  {[...addable, ...(addable.includes(sel.type) ? [] : [sel.type])].map((t) => (
                     <option key={t} value={t}>
                       {ITEM_SPECS[t].label}
                     </option>

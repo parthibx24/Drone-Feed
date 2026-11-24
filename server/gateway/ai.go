@@ -152,6 +152,20 @@ func streamKind(name string) string {
 	return "visible"
 }
 
+// kindOf is what a drone's stream shows now. A camera that switches lenses
+// (Mavic 3T) sends one stream and reports its lens: thermal while the
+// thermal lens is on, whatever the stream is called. Otherwise the name
+// decides (star9: _camera and _thermal).
+func kindOf(d *Drone, stream string) string {
+	if cam := d.Snapshot().Camera; cam != nil && cam.Source != nil {
+		if *cam.Source == "thermal" {
+			return "thermal"
+		}
+		return "visible"
+	}
+	return streamKind(stream)
+}
+
 func (h *aiHub) streamsFor(ctx context.Context, d *Drone) []string {
 	h.mu.Lock()
 	c, ok := h.streamCache[d.cfg.ID]
@@ -199,7 +213,7 @@ func (h *aiHub) handleTargets(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		for _, s := range h.streamsFor(r.Context(), d) {
-			targets = append(targets, aiTarget{DroneID: id, Stream: s, Kind: streamKind(s)})
+			targets = append(targets, aiTarget{DroneID: id, Stream: s, Kind: kindOf(d, s)})
 		}
 	}
 	writeJSON(w, 200, map[string]any{"targets": targets, "fps": h.cfg.FPS, "min_confidence": h.cfg.MinConfidence})
@@ -629,7 +643,7 @@ func (h *aiHub) setEnabled(d *Drone, on bool) {
 func (h *aiHub) visibleStream(ctx context.Context, d *Drone) string {
 	names := h.streamsFor(ctx, d)
 	for _, n := range names {
-		if streamKind(n) == "visible" {
+		if kindOf(d, n) == "visible" {
 			return n
 		}
 	}

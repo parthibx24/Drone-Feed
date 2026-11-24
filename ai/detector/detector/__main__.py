@@ -97,6 +97,11 @@ def serve() -> None:
                 workers.pop(key).stop()
         for key, (kind, model) in wanted.items():
             w = workers.get(key)
+            if w is not None and w.kind != kind:
+                # A lens-switching camera (Mavic 3T) changed lens: restart with the other model.
+                log.info("restarting %s/%s: now %s", key[0], key[1], kind)
+                workers.pop(key).stop()
+                w = None
             if w is None or not w.is_alive():
                 url = template.format(stream=key[1], drone=key[0])
                 log.info("starting %s/%s (%s) from %s", key[0], key[1], kind, url)

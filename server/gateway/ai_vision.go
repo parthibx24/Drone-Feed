@@ -83,7 +83,7 @@ func (h *aiHub) analyze(ctx context.Context, d *Drone, stream, prompt string) (m
 	if err != nil {
 		return nil, err
 	}
-	kind := streamKind(stream)
+	kind := kindOf(d, stream)
 	question := strings.TrimSpace(prompt)
 	if question == "" {
 		question = "Describe the scene."

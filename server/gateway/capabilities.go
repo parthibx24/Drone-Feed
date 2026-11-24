@@ -151,9 +151,17 @@ type bridgeStatus struct {
 	model  string
 	online bool
 	kinds  []string
-	// noLink: no remote controller is connected for this aircraft, so the
-	// bridge lists no commands. Not the same as DJI Pilot 2's camera-only list.
+	// noLink: no remote controller is connected for this aircraft (offline,
+	// no commands listed). Not DJI Pilot 2's camera-only list, nor an online
+	// model the bridge can't command.
 	noLink bool
+}
+
+func modelSuffix(model string) string {
+	if model == "" {
+		return ""
+	}
+	return " (" + model + ")"
 }
 
 // profileFeatures is what the profile allows, before presence and the
@@ -168,6 +176,11 @@ func profileFeatures(in capInput) (features []string, note string) {
 		case in.bridge.noLink:
 			// Offline anyway: keep everything rather than guess which app comes next.
 			note = "No remote controller is connected for this aircraft. Open StarWatch Pilot on it to fly from here, or DJI Pilot 2 for the camera only."
+		case len(in.bridge.kinds) == 0:
+			// Online, but dji-bridge has no commands for this model (it knows the
+			// Mavic 3E and 3T): telemetry and video only.
+			kinds = nil
+			note = "The aircraft service cannot command this model yet" + modelSuffix(in.bridge.model) + ": video and telemetry only."
 		default:
 			kinds = nil
 			for _, k := range in.bridge.kinds {

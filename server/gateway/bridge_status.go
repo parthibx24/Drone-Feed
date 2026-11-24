@@ -83,8 +83,10 @@ func fetchBridge(ctx context.Context, b *BridgeConfig) (*bridgeStatus, error) {
 	if err := json.NewDecoder(http.MaxBytesReader(nil, resp.Body, bridgeMaxBody)).Decode(&a); err != nil {
 		return nil, err
 	}
+	// No commands while online is a model the bridge can't command (see
+	// profileFeatures), not a missing remote controller.
 	return &bridgeStatus{at: time.Now(), model: a.Model, online: a.Online, kinds: a.Capabilities,
-		noLink: len(a.Capabilities) == 0}, nil
+		noLink: len(a.Capabilities) == 0 && !a.Online}, nil
 }
 
 // bridgeNow is the last bridge answer, or nil if there is none lately.

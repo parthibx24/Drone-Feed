@@ -19,7 +19,7 @@
 | API | [`server.go`](../server/gateway/server.go), [`ws.go`](../server/gateway/ws.go) | REST, WebSocket, roles, CORS, audit log. |
 | Login | [`auth.go`](../server/gateway/auth.go) | Users with bcrypt passwords, HMAC-signed session cookies, CSRF header check, login rate limit. |
 | Web UI | [`web.go`](../server/gateway/web.go) | Serves the built React app from `web_dir`, with fallback for client-side routes. |
-| Video and recordings | [`media.go`](../server/gateway/media.go), [`recorder/`](../server/recorder/) | Camera discovery in go2rtc, and server-side ffmpeg recording (port of the old `recorder.py`). |
+| Video and recordings | [`media.go`](../server/gateway/media.go), [`recorder/`](../server/recorder/) | Camera discovery in go2rtc, and server-side ffmpeg recording (port of the old `recorder.py`). Recording goes to MKV, which survives a crash; a finished recording is then copied into a faststart MP4 for the browser ([`webcopy.go`](../server/recorder/webcopy.go)), one file at a time. At start-up the gateway queues every older MKV the same way, newest first. If a copy fails or doesn't match (track count, length within 2 % or 1 s), the MKV is kept. |
 | Config | [`config.go`](../server/gateway/config.go) | YAML with `${ENV}` expansion; defaults and validation. |
 
 ## How a command is executed

@@ -254,12 +254,12 @@ Each command is audited with its kind (`msg="aircraft command" kind=...`) as wel
 | Method | Path | Role | Notes |
 |---|---|---|---|
 | GET | `/drones/{id}/cameras` | V | `{go2rtc_url, stream_prefix, streams[], discovered}`. Streams are go2rtc's `<prefix>_*`, falling back to `<prefix>_camera` and `<prefix>_thermal`. |
-| POST | `/drones/{id}/recording/start` | O | Waits for frames from every stream, then records them all into one MKV without re-encoding |
+| POST | `/drones/{id}/recording/start` | O | Waits for frames from every stream, then records them all into one MKV without re-encoding. Once stopped, the MKV is copied (no re-encoding) into an MP4 with its index at the front, and removed once the copy is checked: the listing then shows the `.mp4`, and a link to the `.mkv` still finds it. |
 | POST | `/drones/{id}/recording/stop` | O | Finalises the file. Returns duration, size and metadata. |
 | GET | `/drones/{id}/recording` | V | This drone's recording state |
 | GET | `/recordings/status` | V | `{active_count, recordings, by_drone}`; `by_drone` is keyed by stream prefix |
 | GET | `/recordings?sort_by=time\|duration\|size\|name&order=desc\|asc&name=` | V | Library listing with ffprobe metadata |
-| GET / HEAD | `/recordings/download/{path}` | V | The file |
+| GET / HEAD | `/recordings/download/{path}` | V | The file, with range requests (the browser's player seeks with them) |
 | DELETE | `/recordings/{path}` | O | 409 while that file is still recording |
 
 ## Raw command (disabled by default)

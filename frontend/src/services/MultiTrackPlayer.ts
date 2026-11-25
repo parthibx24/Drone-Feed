@@ -12,12 +12,19 @@ export function canUseClientPreview(): boolean {
   return typeof window.VideoDecoder !== "undefined";
 }
 
+/**
+ * Frames decoded ahead of the clock. One frame ahead stuttered whenever a
+ * fetch over the internet or a decode took longer than a frame (40 ms at
+ * 25 fps); a few hundred milliseconds of buffer rides those out.
+ */
+const LOOKAHEAD_FRAMES = 12;
+
 /** One video track: sequential decode iterator, current frame and canvas. */
 class TrackRenderer {
   private readonly ctx: CanvasRenderingContext2D;
   private iterator: AsyncGenerator<VideoSample, void, unknown> | null = null;
   private current: VideoSample | null = null;
-  private next: VideoSample | null = null;
+  private readonly ahead: VideoSample[] = [];
   private drawn: VideoSample | null = null;
   private fetching = false;
   private readonly track: InputVideoTrack;
@@ -41,15 +48,21 @@ class TrackRenderer {
     await this.advance();
   }
 
-  /** Ensures a prefetched upcoming frame exists (safe to call re-entrantly). */
+  /** Keeps LOOKAHEAD_FRAMES decoded frames queued (safe to call re-entrantly). */
   private async advance(): Promise<void> {
-    if (!this.iterator || this.fetching || this.next) return;
+    if (!this.iterator || this.fetching) return;
     this.fetching = true;
     try {
-      while (this.iterator && !this.next) {
-        const { value, done } = await this.iterator.next();
+      while (this.iterator && this.ahead.length < LOOKAHEAD_FRAMES) {
+        const iterator: AsyncGenerator<VideoSample, void, unknown> = this.iterator;
+        const { value, done } = await iterator.next();
         if (done) return;
-        this.next = value;
+        // A seek or stop replaced the iterator while this frame was decoding.
+        if (iterator !== this.iterator) {
+          value.close();
+          return;
+        }
+        this.ahead.push(value);
       }
     } finally {
       this.fetching = false;
@@ -58,12 +71,13 @@ class TrackRenderer {
 
   /** Pulls frames up to `clock` seconds and draws the latest one. */
   tick(clock: number): void {
-    while (this.next && this.next.timestamp <= clock) {
+    while (this.ahead.length && this.ahead[0].timestamp <= clock) {
       this.current?.close();
-      this.current = this.next;
-      this.next = null;
-      void this.advance();
+      this.current = this.ahead.shift()!;
     }
+    // Every tick, not only after taking a frame: a fetch still running for a
+    // replaced iterator (seek) makes advance() return early once.
+    if (this.ahead.length < LOOKAHEAD_FRAMES) void this.advance();
     if (this.current && this.current !== this.drawn) {
       this.current.draw(this.ctx, 0, 0, this.canvas.width, this.canvas.height);
       this.drawn = this.current;
@@ -76,9 +90,9 @@ class TrackRenderer {
       this.iterator = null;
     }
     this.current?.close();
-    this.next?.close();
+    for (const frame of this.ahead) frame.close();
     this.current = null;
-    this.next = null;
+    this.ahead.length = 0;
     this.drawn = null;
   }
 }
@@ -116,7 +130,7 @@ export class MultiTrackPlayer {
     if (this.disposed) return;
 
     this.input = new mediabunny.Input({
-      formats: [mediabunny.MATROSKA],
+      formats: [mediabunny.MP4, mediabunny.MATROSKA],
       source: new mediabunny.UrlSource(url),
     });
 

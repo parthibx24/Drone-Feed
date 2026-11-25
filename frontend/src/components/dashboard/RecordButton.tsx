@@ -13,7 +13,7 @@ const LABELS: Record<Exclude<RecordingState, "recording">, string> = {
 };
 
 const TITLES: Partial<Record<RecordingState, string>> = {
-  idle: "Record all camera feeds to a single MKV (zero-encoding)",
+  idle: "Record all camera feeds into one file (no re-encoding)",
   waiting: "Waiting for active camera feed from go2rtc… Click to cancel.",
   recording: "Stop recording",
 };

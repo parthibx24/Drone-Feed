@@ -1,9 +1,13 @@
+import { useDrone } from "../../context/DroneContext";
 import type { Telemetry } from "../../types/drone";
+import { flightModeLabel } from "../../utils/modes";
 import { EMPTY_VALUE, formatTelemetryAge } from "../../utils/format";
 import styles from "./FlightStatusChips.module.css";
 
 export function FlightStatusChips({ telemetry }: { telemetry: Telemetry }) {
-  const { flight_mode: mode, armed, system_status: status, timestamp } = telemetry;
+  const { capabilities } = useDrone();
+  const { armed, system_status: status, timestamp } = telemetry;
+  const mode = flightModeLabel(telemetry.flight_mode, capabilities?.autopilot);
 
   return (
     <div className={styles.chips}>

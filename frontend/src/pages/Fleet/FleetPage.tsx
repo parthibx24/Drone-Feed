@@ -8,6 +8,7 @@ import { errorText } from "../../services/http";
 import type { DroneSummary } from "../../types/gateway";
 import { EMPTY_VALUE } from "../../utils/format";
 import styles from "./FleetPage.module.css";
+import { flightModeLabel } from "../../utils/modes";
 
 const POLL_MS = 3000;
 
@@ -68,7 +69,7 @@ function DroneCard({ drone, onOpen }: { drone: DroneSummary; onOpen: () => void 
           </span>
         </div>
         <div className={styles.chips}>
-          <span className={styles.chip}>{drone.online ? drone.mode : EMPTY_VALUE}</span>
+          <span className={styles.chip}>{drone.online ? flightModeLabel(drone.mode, drone.capabilities?.autopilot) : EMPTY_VALUE}</span>
           {drone.online && (
             <span className={`${styles.chip} ${drone.armed ? styles.armed : ""}`}>{drone.armed ? "ARMED" : "DISARMED"}</span>
           )}

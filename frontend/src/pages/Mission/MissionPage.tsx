@@ -26,6 +26,7 @@ import {
   warnings,
   type FieldKey,
 } from "../../utils/mission";
+import { flightModeLabel } from "../../utils/modes";
 import { FLOWN_TYPES, fieldPresets, heightPresets } from "../../utils/presets";
 import styles from "./MissionPage.module.css";
 
@@ -413,7 +414,7 @@ export function MissionPage() {
         />
         {snapshot?.mission && (
           <div className={styles.progress}>
-            {snapshot.mode} · item {Math.max(0, snapshot.mission.current_seq)} of {Math.max(0, snapshot.mission.total - 1)}
+            {flightModeLabel(snapshot.mode, capabilities?.autopilot)} · item {Math.max(0, snapshot.mission.current_seq)} of {Math.max(0, snapshot.mission.total - 1)}
             {snapshot.mission.state ? ` · ${snapshot.mission.state.replace(/_/g, " ").toLowerCase()}` : ""}
           </div>
         )}

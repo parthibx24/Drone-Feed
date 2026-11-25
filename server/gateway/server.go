@@ -61,6 +61,7 @@ func New(cfg *Config, log *slog.Logger, version string) (*Gateway, error) {
 		return nil, fmt.Errorf("recordings_dir: %w", err)
 	}
 	g.rec = rec
+	rec.ConvertExisting() // older MKVs become browser-playable MP4s in the background
 	if cfg.AI.Enabled {
 		if g.ai, err = newAIHub(g); err != nil {
 			return nil, fmt.Errorf("ai: %w", err)

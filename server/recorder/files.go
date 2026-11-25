@@ -298,8 +298,19 @@ func rsplit(s, sep string, n int) []string {
 var ErrActive = errors.New("recording is currently active")
 
 // Path resolves a relative recording path safely inside the recordings
-// directory (no traversal), falling back to a basename search.
+// directory (no traversal), falling back to a basename search. A link to
+// an MKV that has since become an MP4 (webcopy.go) finds the MP4.
 func (m *Manager) Path(rel string) (string, bool) {
+	if p, ok := m.path(rel); ok {
+		return p, true
+	}
+	if strings.EqualFold(filepath.Ext(rel), ".mkv") {
+		return m.path(strings.TrimSuffix(rel, filepath.Ext(rel)) + ".mp4")
+	}
+	return "", false
+}
+
+func (m *Manager) path(rel string) (string, bool) {
 	inside := func(p string) (string, bool) {
 		r, err := filepath.EvalSymlinks(p)
 		if err != nil {

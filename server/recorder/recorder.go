@@ -7,7 +7,8 @@
 //     (a go2rtc producer existing is not enough), up to a deadline;
 //  2. "recording": start FFmpeg with all streams mapped into one file, then
 //     confirm bytes actually reach disk; if not, tear down and wait again;
-//  3. stop: send "q" so FFmpeg finalises the MKV index, then terminate/kill.
+//  3. stop: send "q" so FFmpeg finalises the MKV index, then terminate/kill;
+//  4. afterwards the MKV is copied into an MP4 the browser plays (webcopy.go).
 //
 // JSON field names match the Python API so the web UI is unchanged.
 package recorder
@@ -74,6 +75,9 @@ type Manager struct {
 	mu         sync.Mutex
 	active     map[string]*active
 	probeCache map[string]probeEntry
+
+	webOnce  sync.Once
+	webQueue chan string // finished MKVs to copy into browser-playable MP4s
 
 	// WaitTimeout overrides the default stream wait (tests).
 	WaitTimeout time.Duration
@@ -478,6 +482,7 @@ func (m *Manager) Stop(drone string) map[string]any {
 	m.mu.Lock()
 	delete(m.active, name)
 	m.mu.Unlock()
+	m.queueWebCopy(rec.path)
 
 	var size int64
 	rel := rec.filename

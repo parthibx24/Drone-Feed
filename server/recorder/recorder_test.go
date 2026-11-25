@@ -131,16 +131,25 @@ func TestRecordStopListDelete(t *testing.T) {
 		t.Fatal("not idle after stop")
 	}
 
+	// The finished MKV becomes an MP4 for the browser (webcopy.go).
 	list = m.List("kotowali", "time", "desc")
+	for deadline := time.Now().Add(3 * time.Second); (len(list) != 1 || !strings.HasSuffix(list[0].Filename, ".mp4")) && time.Now().Before(deadline); {
+		time.Sleep(20 * time.Millisecond)
+		list = m.List("kotowali", "time", "desc")
+	}
 	if len(list) != 1 || list[0].IsActive || list[0].StreamCount != 2 || list[0].Streams[1].Role != "thermal" ||
-		list[0].DurationFormatted != "00:12" {
+		list[0].DurationFormatted != "00:12" || !strings.HasSuffix(list[0].Filename, ".mp4") {
 		t.Fatalf("finished listing: %+v", list)
 	}
 	if len(m.List("someone-else", "time", "desc")) != 0 {
 		t.Fatal("name filter")
 	}
-	if p, ok := m.Path(list[0].RelativePath); !ok || !strings.HasSuffix(p, ".mkv") {
+	if p, ok := m.Path(list[0].RelativePath); !ok || !strings.HasSuffix(p, ".mp4") {
 		t.Fatal("path lookup")
+	}
+	// A link made at stop time still names the MKV.
+	if p, ok := m.Path(stop["relative_path"].(string)); !ok || !strings.HasSuffix(p, ".mp4") {
+		t.Fatalf("old MKV link: %v %v", p, ok)
 	}
 	if p, ok := m.Path(list[0].Filename); !ok || p == "" {
 		t.Fatal("basename fallback lookup")

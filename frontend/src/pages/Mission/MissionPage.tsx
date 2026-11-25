@@ -7,6 +7,7 @@ import { Button } from "../../components/ui/Button";
 import { useConfirm } from "../../components/ui/ConfirmDialog";
 import { Field, NumberInput, Select } from "../../components/ui/Field";
 import { Panel, PanelTitle } from "../../components/ui/Panel";
+import { Presets } from "../../components/ui/Presets";
 import { Toast } from "../../components/ui/Toast";
 import { useAuth } from "../../context/AuthContext";
 import { useDrone } from "../../context/DroneContext";
@@ -25,6 +26,7 @@ import {
   warnings,
   type FieldKey,
 } from "../../utils/mission";
+import { FLOWN_TYPES, fieldPresets, heightPresets } from "../../utils/presets";
 import styles from "./MissionPage.module.css";
 
 const round7 = (v: number) => Math.round(v * 1e7) / 1e7;
@@ -127,6 +129,13 @@ export function MissionPage() {
 
   const updateItem = (index: number, patch: Partial<MissionItem>) =>
     edit(items.map((item, i) => (i === index ? { ...item, ...patch } : item)));
+
+  // One height for every point the aircraft flies to, instead of editing each.
+  const flownCount = items.filter((item) => FLOWN_TYPES.includes(item.type)).length;
+  const applyHeightToAll = (alt: number) => {
+    edit(items.map((item) => (FLOWN_TYPES.includes(item.type) ? { ...item, alt_m: alt } : item)));
+    notify(`${flownCount} ${flownCount === 1 ? "point" : "points"} set to ${alt} m`);
+  };
 
   const removeItem = (index: number) => {
     edit(items.filter((_, i) => i !== index));
@@ -283,10 +292,26 @@ export function MissionPage() {
               <input type="checkbox" checked={addOnClick} onChange={(e) => setAddOnClick(e.target.checked)} />
               Map click adds a waypoint
             </label>
-            <label className={styles.altDefault}>
-              Default alt
-              <NumberInput value={defaultAlt} onValue={setDefaultAlt} min={1} className={styles.smallInput} />m
-            </label>
+          </div>
+        )}
+        {editable && (
+          <div className={styles.heightBlock}>
+            <div className={styles.heightHead}>
+              <span>New points at</span>
+              <NumberInput value={defaultAlt} onValue={setDefaultAlt} min={1} className={styles.smallInput} aria-label="Height for new points (m)" />
+              <span className={styles.unit}>m</span>
+              <Button
+                size="sm"
+                variant="ghost"
+                className={styles.applyAll}
+                disabled={!defaultAlt || flownCount === 0}
+                onClick={() => defaultAlt && applyHeightToAll(defaultAlt)}
+                title="Set every waypoint and loiter point to this height"
+              >
+                Apply to all
+              </Button>
+            </div>
+            <Presets values={heightPresets(limits)} value={defaultAlt} onPick={setDefaultAlt} unit="m" ariaLabel="Height for new points" />
           </div>
         )}
 
@@ -334,16 +359,28 @@ export function MissionPage() {
               )}
             </div>
             <div className={styles.fields}>
-              {ITEM_SPECS[sel.type].fields.map((key: FieldKey) => (
-                <Field key={key} label={key === "alt_m" ? altLabel(sel) : FIELD_LABELS[key]}>
-                  <NumberInput
-                    value={sel[key]}
-                    onValue={(v) => updateItem(selected, { [key]: v })}
-                    step={key === "lat" || key === "lon" ? 0.000001 : 1}
-                    disabled={!editable}
-                  />
-                </Field>
-              ))}
+              {ITEM_SPECS[sel.type].fields.map((key: FieldKey) => {
+                const presets = editable ? fieldPresets(sel.type, key, limits) : null;
+                const label = key === "alt_m" ? altLabel(sel) : FIELD_LABELS[key];
+                return (
+                  <Field key={key} label={label} className={presets ? styles.fullRow : ""}>
+                    <NumberInput
+                      value={sel[key]}
+                      onValue={(v) => updateItem(selected, { [key]: v })}
+                      step={key === "lat" || key === "lon" ? 0.000001 : 1}
+                      disabled={!editable}
+                    />
+                    {presets && (
+                      <Presets
+                        {...presets}
+                        value={sel[key]}
+                        onPick={(v) => updateItem(selected, { [key]: v })}
+                        ariaLabel={label}
+                      />
+                    )}
+                  </Field>
+                );
+              })}
               {ITEM_SPECS[sel.type].fields.length === 0 && <p className={styles.noFields}>No settings for this item.</p>}
             </div>
           </div>

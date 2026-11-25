@@ -7,7 +7,11 @@ import { errorText } from "../../services/http";
 import { Button } from "../ui/Button";
 import type { useConfirm } from "../ui/ConfirmDialog";
 import { NumberInput, Select } from "../ui/Field";
+import { Presets } from "../ui/Presets";
 import styles from "./FlightPanel.module.css";
+
+/** Take-off heights offered as one-tap presets. */
+const TAKEOFF_PRESETS_M = [5, 10, 20, 30, 50];
 
 /** Modes worth offering first, in a sensible order (all ArduCopter). */
 const COMMON_MODES = ["LOITER", "GUIDED", "AUTO", "ALT_HOLD", "POSHOLD", "BRAKE", "RTL", "SMART_RTL", "LAND", "STABILIZE"];
@@ -178,6 +182,16 @@ export function FlightPanel({ notify, confirm }: FlightPanelProps) {
             Take off
           </Button>
         </div>
+      )}
+      {can("takeoff") && (
+        <Presets
+          values={TAKEOFF_PRESETS_M}
+          value={takeoffAlt}
+          onPick={setTakeoffAlt}
+          unit="m"
+          disabled={disabled}
+          ariaLabel="Takeoff altitude"
+        />
       )}
 
       {actions.length > 0 && (

@@ -57,10 +57,31 @@
   accent-color: var(--color-accent);
 }
 
-.altDefault {
+.heightBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: var(--color-text-subtle);
+  font-size: 14px;
+}
+
+.heightHead {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.unit {
+  color: var(--color-text-muted);
+}
+
+.applyAll {
+  margin-left: auto;
+}
+
+/* A field with presets takes the whole row, so its chips fit on one line. */
+.fullRow {
+  grid-column: span 2;
 }
 
 .smallInput {

@@ -84,7 +84,7 @@ export function DroneMap({ telemetry, onGoto, gotoActive = false, onToggleGoto, 
           type="button"
           className={`${styles.gotoButton} ${gotoActive ? styles.gotoActive : ""}`}
           onClick={onToggleGoto}
-          title="Click the map to fly the drone there (GUIDED)"
+          title="Pick a point on the map to fly the drone there"
         >
           {gotoActive ? "Click map… (cancel)" : "Go to"}
         </button>

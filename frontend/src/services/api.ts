@@ -57,7 +57,8 @@ export const api = {
   rtl: (id: string) => post(drone(id, "/rtl")),
   pause: (id: string) => post(drone(id, "/pause")),
   resume: (id: string) => post(drone(id, "/resume")),
-  goto: (id: string, lat: number, lon: number, altM: number) => post(drone(id, "/goto"), { lat, lon, alt_m: altM }),
+  goto: (id: string, lat: number, lon: number, altM: number, speedMS?: number) =>
+    post(drone(id, "/goto"), { lat, lon, alt_m: altM, ...(speedMS ? { speed_m_s: speedMS } : {}) }),
 
   // --- mission
   mission: (id: string) => request<{ items: MissionItem[] }>(drone(id, "/mission")),

@@ -1,8 +1,9 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AIPanel } from "../../components/ai/AIPanel";
 import { EventModal } from "../../components/ai/EventDetails";
 import { Compass } from "../../components/dashboard/Compass";
 import { DroneMap } from "../../components/dashboard/DroneMap";
+import { GotoForm, type GotoChoice } from "../../components/dashboard/GotoForm";
 import { GimbalPad } from "../../components/dashboard/GimbalPad";
 import { RecentRecordings } from "../../components/dashboard/RecentRecordings";
 import { RecordingPreviewModal } from "../../components/dashboard/RecordingPreviewModal";
@@ -36,7 +37,7 @@ import type { Recording } from "../../types/recording";
 import { labelName, MAP_EVENT_WINDOW_MS } from "../../utils/ai";
 import { buildStats } from "../../utils/format";
 import { toTelemetry } from "../../utils/telemetry";
-import type { AircraftCommand, AircraftFeature, CameraSource } from "../../types/gateway";
+import type { AircraftCommand, AircraftFeature, CameraSource, Limits } from "../../types/gateway";
 import styles from "./Dashboard.module.css";
 
 type SidebarTab = "flight" | "recordings" | "ai" | "speaker" | "thermal" | "aircraft";
@@ -62,7 +63,7 @@ export function Dashboard() {
   const { message, notify } = useToast();
   const confirm = useConfirm();
   const { canOperate } = useAuth();
-  const { id, info, snapshot, sendGimbalRate, detections, follow, setFollow, can } = useDrone();
+  const { id, info, snapshot, sendGimbalRate, detections, follow, setFollow, can, capabilities } = useDrone();
   const telemetry = useMemo(() => toTelemetry(snapshot), [snapshot]);
   const prefix = info?.stream_prefix;
 
@@ -91,6 +92,14 @@ export function Dashboard() {
   const [gotoTarget, setGotoTarget] = useState<[number, number] | null>(null);
   const [mainStream, setMainStream] = useState<string | undefined>(undefined);
   const [openEvent, setOpenEvent] = useState<AIEvent | null>(null);
+  const [limits, setLimits] = useState<Limits | null>(null);
+  // The last go-to speed is kept for the next one; the height starts at the drone's own.
+  const gotoChoice = useRef<GotoChoice>({ altM: undefined, speedMS: 5 });
+  const dji = capabilities?.autopilot === "dji";
+
+  useEffect(() => {
+    api.limits().then(setLimits).catch(() => {});
+  }, []);
 
   const aiStatus = useAIStatus(id);
   const aiEvents = useAIEvents();
@@ -139,31 +148,51 @@ export function Dashboard() {
     async (lat: number, lon: number) => {
       setGotoActive(false);
       setGotoTarget([lat, lon]);
-      const alt = Math.max(5, Math.round(snapshot?.position?.alt_rel_m ?? 0));
+      const current = Math.max(5, Math.round(snapshot?.position?.alt_rel_m ?? 0));
+      gotoChoice.current = { ...gotoChoice.current, altM: current };
+      const where = (
+        <strong>
+          {lat.toFixed(6)}, {lon.toFixed(6)}
+        </strong>
+      );
       const ok = await confirm.ask({
         title: "Fly here?",
         message: (
           <>
-            The drone switches to GUIDED and flies to <strong>{lat.toFixed(6)}, {lon.toFixed(6)}</strong> at{" "}
-            <strong>{alt} m</strong> above home (its current altitude).
+            {dji ? (
+              <>
+                The aircraft flies straight to {where} with DJI's fly-to. If StarWatch doesn't have control yet, the
+                pilot is asked on the remote controller first. Pause stops it.
+              </>
+            ) : (
+              <>The drone switches to GUIDED and flies to {where}.</>
+            )}
+            <GotoForm
+              currentAltM={current}
+              limits={limits}
+              choice={gotoChoice}
+              heightLabel={dji ? "Height above take-off (m)" : "Altitude above home (m)"}
+            />
           </>
         ),
         confirmLabel: "Go",
         danger: true,
       });
-      if (!ok) {
+      const { altM, speedMS } = gotoChoice.current;
+      if (ok && (!altM || altM <= 0)) notify("Enter a height for the go-to");
+      if (!ok || !altM || altM <= 0) {
         setGotoTarget(null);
         return;
       }
       try {
-        await api.goto(id, lat, lon, alt);
-        notify("Flying to target");
+        await api.goto(id, lat, lon, altM, speedMS);
+        notify(`Flying to target at ${altM} m${speedMS ? `, ${speedMS} m/s` : ""}`);
       } catch (error) {
         notify(errorText(error));
         setGotoTarget(null);
       }
     },
-    [confirm, id, notify, snapshot?.position?.alt_rel_m],
+    [confirm, dji, id, limits, notify, snapshot?.position?.alt_rel_m],
   );
 
   const handleFollow = useCallback(
